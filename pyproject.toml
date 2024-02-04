@@ -1,0 +1,26 @@
+[project]
+name = "agr"
+dynamic = ["version"]
+description="Archlinux Git Repositories"
+requires-python = ">=3.7"
+keywords = ["archlinux"]
+authors = [
+  {name = "Huseyin BIYIK", email = "boogiepop@gmx.com" }
+]
+# The following would provide a command line executable called `sample`
+# which executes the function `main` from this package when invoked.
+
+[project.scripts]  # Optional
+agr = "agr:main"
+
+[tool.setuptools]
+py-modules = ["agr"]
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=43.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "libagr.__version__"}
