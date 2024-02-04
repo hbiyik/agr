@@ -14,6 +14,8 @@ from libagr import cmd
 def reponame(remote):
     if remote.endswith("/"):
         remote = remote[:-1]
+    if remote.endswith(".git"):
+        remote = remote[:-4]
     return os.path.split(remote)[-1]
 
 
