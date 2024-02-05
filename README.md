@@ -115,3 +115,9 @@ to update everything except linux-radxa-rkbsp5-git package without any confirmat
 ```shell
 agr update --noconfirm --ignore linux-radxa-rkbsp5-git
 ```
+
+### to self update the agr tool
+
+```shell
+agr update --agr
+```

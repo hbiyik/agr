@@ -4,6 +4,7 @@ import argparse
 import sys
 import logging
 
+from libagr import cmd as agrcmd
 from libagr import config
 from libagr import defs
 from libagr import repo
@@ -111,6 +112,8 @@ def main():
     update_p = cmd.add_parser(CMD_UPDATE, help="Update packages")
     update_p.add_argument("--ignore", required=False, metavar="pkg1,pkg2,..",
                           help="list of comma seperated packages to ignore")
+    update_p.add_argument("--agr", required=False, action="store_true",
+                          help="update the agr tool itself")
     install_p.add_argument('pkgname', nargs='+', help="list of packages to install")
     for p in [install_p, update_p]:
         p.add_argument("-f", "--force", required=False, action="store_true",
@@ -149,6 +152,12 @@ def main():
                         skipchecksums=args.skipchecksums, skipinteg=args.skipinteg,
                         skippgpcheck=args.skippgpcheck, noconfirm=args.noconfirm)
     elif args.cmd == CMD_UPDATE:
+        if args.agr:
+            agrcmd.interactive("python", "-m", "pip", "install", "https://github.com/hbiyik/agr/archive/master.zip",
+                               "--break-system-packages", "--force-reinstall")
+            log.logger.info(f"Agr updated")
+            agrcmd.interactive("python", "-m", "agr", "--version")
+            return
         with log.Report() as report:
             updates = []
             if args.ignore is not None:
