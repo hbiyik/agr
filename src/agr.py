@@ -151,7 +151,9 @@ def main():
     elif args.cmd == CMD_UPDATE:
         with log.Report() as report:
             updates = []
-            ignores = [x.strip() for x in args.ignore.split(",")]
+            if args.ignore is not None:
+                ignores = [x.strip() for x in args.ignore.split(",")]
+            ignores = []
             for _rname, remote, branch in cfg.iterremotes():
                 for pkgb in repo.iterpkgs(remote, branch):
                     if pkgb.pkgbase in ignores:
