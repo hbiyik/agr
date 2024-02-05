@@ -32,6 +32,14 @@ def originurl(repopath):
 
 
 def syncremote(remote, branch=defs.DEF_BRANCH):
+    def syncsubs(rpath):
+        cmd.stdout("git", "submodule",  "update", "--init", "--recursive", "--quiet", cwd=rpath)
+        cmd.stdout("git", "submodule",  "foreach", "--recursive",
+                   "git", "fetch", "--quiet", cwd=rpath)
+        cmd.stdout("git", "submodule",  "foreach", "--recursive",
+                   "git", "reset", "--hard", "--quiet", cwd=rpath)
+        cmd.stdout("git", "submodule",  "foreach", "--recursive",
+                   "git", "clean", "-d", "-x", "-f", "--quiet", cwd=rpath)
     rpath = repopath(remote)
     if os.path.exists(rpath):
         oldremote = originurl(rpath)
@@ -39,9 +47,11 @@ def syncremote(remote, branch=defs.DEF_BRANCH):
             cmd.stdout("git", "fetch", "origin", branch, "--quiet", cwd=rpath)
             cmd.stdout("git", "clean", "-d", "-x", "-f", "--quiet", cwd=rpath)
             cmd.stdout("git", "reset", "--hard", f"origin/{branch}", "--quiet", cwd=rpath)
+            syncsubs(rpath)
             return
         cmd.stdout("rm", "-rf", reponame(remote), cwd=defs.REPO_PATH)
     cmd.stdout("git", "clone", "-b", branch, remote, cwd=defs.REPO_PATH)
+    syncsubs(rpath)
 
 
 def syncworking(remote, pkgpath, workpath):
