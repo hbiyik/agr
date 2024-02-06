@@ -81,11 +81,15 @@ class Pkgbuild:
                 yield k.strip(), v.strip()
 
     def getsources(self):
-        if not self.hascache("download", self.workpath):
-            log.logger.info(f"Updating sources of {git.reponame(self.pkgpath)}")
-            if cmd.interactive("makepkg", "-o", "-d", "-A", cwd=self.workpath):
-                self.makecache("download", self.workpath, True)
-        return self.getcache("download", self.workpath)
+        try:
+            if not self.hascache("download", self.workpath):
+                log.logger.info(f"Updating sources of {git.reponame(self.pkgpath)}")
+                if cmd.interactive("makepkg", "-o", "-d", "-A", cwd=self.workpath):
+                    self.makecache("download", self.workpath, True)
+            return self.getcache("download", self.workpath)
+        except Exception:
+            log.logger.warn("Error Downloading sources, check PKGBUILD")
+            return None
 
     def srcinfo_keys(self, key):
         for k, v in self.itersrcinfo():
@@ -118,9 +122,11 @@ class Pkgbuild:
         vers = ""
         epoch = self.epoch
         pkgrel = self.pkgrel
-        pkgver = self.pkgver
         if self.epoch:
             vers = f"{epoch}:"
+        pkgver = self.pkgver
+        if pkgver is None:
+            return
         vers += pkgver
         if pkgrel:
             vers += f"-{pkgrel}"

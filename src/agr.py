@@ -31,7 +31,7 @@ def logpkgstate(pkgb, pkgname, versions, issub):
         retval += f", version: {pkgb.version}"
         if isins:
             retval += f", system: {sysver}"
-            if pkgb.version.segments != sysver.segments:
+            if pkgb.version is not None and pkgb.version.segments != sysver.segments:
                 retval += f", needsupdate"
     return retval
 
@@ -66,6 +66,8 @@ def installpkgs(report, *packages, **kwargs):
         skip = False
         isins, sysver = pkgb.checkinstall(pkgname)
         if pkgname not in pkgnames:
+            if pkgver is None:
+                continue
             if isins and ((compare and sysver.compare(compare, version)) or compare is None):
                 skip = True
             if compare and pkgver.compare(compare, version):
@@ -165,7 +167,7 @@ def main():
             ignores = []
             for _rname, remote, branch in cfg.iterremotes():
                 for pkgb in repo.iterpkgs(remote, branch):
-                    if pkgb.pkgbase in ignores:
+                    if pkgb.pkgbase in ignores or pkgb.version is None:
                         continue
                     isins, sysver = pkgb.checkinstall(pkgb.pkgbase)
                     if isins and pkgb.version.segments != sysver.segments and pkgb.pkgbase not in updates:
