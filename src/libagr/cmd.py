@@ -4,8 +4,7 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import subprocess
-import os
-import uuid
+import tempfile
 
 from libagr import log
 
@@ -36,10 +35,8 @@ def stdout(*cmd, **kwargs):
 
 def source_stdout(source, cmd, **kwargs):
     log.logger.debug(f"Executing: '{cmd}', with source: {source}, kwargs: {kwargs}")
-    cwd = kwargs.get("cwd") or os.getcwd()
-    scriptfile = os.path.join(cwd, str(uuid.uuid4()))
-    with open(scriptfile, "w") as f:
+    with tempfile.NamedTemporaryFile("w", delete=False) as f:
         f.write(f"source {source} && {cmd}")
-    out = stdout("bash", scriptfile, **kwargs)
-    os.remove(scriptfile)
+        f.close()
+        out = stdout("bash", f.name, **kwargs)
     return out
