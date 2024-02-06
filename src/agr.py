@@ -162,9 +162,9 @@ def main():
             return
         with log.Report() as report:
             updates = []
+            ignores = []
             if args.ignore is not None:
                 ignores = [x.strip() for x in args.ignore.split(",")]
-            ignores = []
             for _rname, remote, branch in cfg.iterremotes():
                 for pkgb in repo.iterpkgs(remote, branch):
                     if pkgb.pkgbase in ignores or pkgb.version is None:
