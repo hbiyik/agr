@@ -3,35 +3,35 @@ Created on Feb 2, 2024
 
 @author: boogie
 '''
-SEPS = [":", "-"]
+from libagr import defs
 
 
 class Version():
     def __init__(self, version):
         self.version = version
         version_str = version
-        for c in SEPS:
+        for c in defs.VERSION_SEPS:
             version_str = version_str.replace(c, ".")
         segments = []
         for segment in version_str.split("."):
             if segment.isdigit():
                 segment = int(segment)
             segments.append(segment)
-        self.segments = set(segments)
+        self.segments = segments
 
     def __str__(self):
         return self.version
 
     def compare(self, operator, version):
-        if operator == "=":
+        if operator == defs.COMP_EQ:
             return self.segments == version.segmnets
-        elif operator == ">":
+        elif operator == defs.COMP_G:
             return self.segments > version.segments
-        elif operator == ">=":
+        elif operator == defs.COMP_GE:
             return self.segments >= version.segments
-        elif operator == "<=":
+        elif operator == defs.COMP_LE:
             return self.segments <= version.segments
-        elif operator == "<":
+        elif operator == defs.COMP_L:
             return self.segments < version.segments
         else:
             return False

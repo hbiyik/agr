@@ -1,14 +1,15 @@
 #!/usr/bin/python
 
 import argparse
-import sys
 import logging
 
-from libagr import cmd as agrcmd
-from libagr import config
 from libagr import defs
 from libagr import repo
 from libagr import log
+from libagr import multi
+from libagr import config
+from libagr import update
+
 
 CMD_REM = "rem"
 CMD_REM_SET = "set"
@@ -17,73 +18,44 @@ CMD_REM_LIST = "list"
 CMD_LIST = "list"
 CMD_INSTALL = "install"
 CMD_UPDATE = "update"
-CMD_STATUS = "status"
-
-cfg = config.Config()
 
 
-def logpkgstate(pkgb, pkgname, versions, issub):
-    retval = "  +- " if issub else ""
-    retval += pkgname
-    isins, sysver = pkgb.checkinstall(pkgname)
-    retval += f", installed: {isins}"
-    if versions and not issub:
-        retval += f", version: {pkgb.version}"
-        if isins:
-            retval += f", system: {sysver}"
-            if pkgb.version is not None and pkgb.version.segments != sysver.segments:
-                retval += f", needsupdate"
-    return retval
+def logpkgstate(pkgb):
+    logs = []
+    for pkgname in pkgb.pkgname:
+        syspkg = repo.checkinstall(pkgname)
+        retval = "[I] " if syspkg else "    "
+        retval += pkgname
+        version = pkgb.version
+        if version:
+            retval += f", version: {version.version}"
+        if syspkg and not (version and version.segments == syspkg.version.segments):
+            retval += f", installed: {syspkg.version}"
+        if syspkg and version and version.segments != syspkg.version.segments:
+            retval = f"[U]{retval[3:]}"
+        logs.append(retval)
+    return logs
 
 
-def status(detailed=False):
-    with log.Report() as report:
-        for rname, remote, branch in cfg.iterremotes():
-            report.log(f"Repository: {rname}")
-            for pkgb in repo.iterpkgs(remote, branch):
-                report.log(logpkgstate(pkgb, pkgb.pkgbase, detailed, False))
-                if pkgb.pkgnames:
-                    for pkgname in pkgb.pkgnames:
-                        if pkgname != pkgb.pkgbase:
-                            report.log(logpkgstate(pkgb, pkgname, detailed, True))
-
-
-def installpkgs(report, *packages, **kwargs):
-    built_pkgs = []
-    pkgnames = []
-    for pkgname in packages:
-        pkgrealname = repo.haspkg(pkgname)
-        if not pkgrealname:
-            log.logger.error(f"Can not find package {pkgname}")
-            return
-        else:
-            pkgnames.append(pkgrealname)
-            log.logger.info(f"Found package {pkgrealname}")
-    deps = list(repo.getdeps(*packages))
-    deps.reverse()
-    for pkgb, pkgname, compare, version in deps:
-        pkgver = pkgb.version
-        skip = False
-        isins, sysver = pkgb.checkinstall(pkgname)
-        if pkgname not in pkgnames:
-            if pkgver is None:
+def status(report):
+    for rname, remote, _branch in config.CFG.iterremotes():
+        header = f"Repository: {rname} : {remote}"
+        report.log("")
+        report.log("    " + header)
+        report.log("    " + "-" * len(header))
+        pman = multi.ProcMan(numworkers=defs.NUMCORES * 2, waittime=0)
+        for pkgb in repo.allpkgbuilds(remote=remote):
+            if isinstance(pkgb, Exception):
                 continue
-            if isins and ((compare and sysver.compare(compare, version)) or compare is None):
-                skip = True
-            if compare and pkgver.compare(compare, version):
-                log.logger.error(f"Can not find package with version{compare}{version.version}")
-                return
-        if skip:
-            report.log(f"Skipped {pkgname} installed: {sysver.version} pkgver: {pkgver.version}")
-            log.logger.info(f"Skipped {pkgname} installed: {sysver.version} pkgver: {pkgver.version}")
-        else:
-            if pkgb not in built_pkgs:
-                if not pkgb.install(**kwargs):
-                    log.logger.error(f"Error installing {pkgname}:{pkgb.version.version}")
-                    return
-                else:
-                    report.log(f"Installed {pkgname}:{pkgb.version.version}")
-                built_pkgs.append(pkgb)
+            pman.add(logpkgstate, pkgb)
+        pman.join()
+        for loglines, _args, _kwargs in pman.returns.values():
+            for logline in loglines:
+                report.log(logline)
+    report.log("")
+    report.log("[I] = Installed")
+    report.log("[U] = Needs Update")
+    report.log("")
 
 
 def main():
@@ -92,9 +64,8 @@ def main():
                         help="debug logging")
     parser.add_argument("-v", "--version", required=False, action="store_true",
                         help="debug logging")
-    cmd = parser.add_subparsers(dest="cmd", required=False)
 
-    _status_p = cmd.add_parser(CMD_STATUS, help="Show current status of the packages available")
+    cmd = parser.add_subparsers(dest="cmd", required=False)
 
     rem_p = cmd.add_parser(CMD_REM, help="edit, remove, list remote agr repositories")
     cmd_rem = rem_p.add_subparsers(dest="cmd_rem", required=True)
@@ -119,9 +90,9 @@ def main():
     install_p.add_argument('pkgname', nargs='+', help="list of packages to install")
     for p in [install_p, update_p]:
         p.add_argument("-f", "--force", required=False, action="store_true",
-                       help="force rebuild of the package")
+                       help=f"Force rebuild the package")
         p.add_argument("-A", "--ignorearch", required=False, action="store_true",
-                       help="Ignore the arch field in PKGBUILD")
+                       help=f"Ignore the arch field in {defs.PKGBUILD}")
         p.add_argument("--skipchecksums", required=False, action="store_true",
                        help="Do not verify checksums of the source files")
         p.add_argument("--skipinteg", required=False, action="store_true",
@@ -131,55 +102,44 @@ def main():
         p.add_argument("--noconfirm", required=False, action="store_true",
                        help="Do not ask for confirmation when resolving dependencies")
 
-    args = parser.parse_args(sys.argv[1:])
-
-    if args.debug:
-        log.setlevel(logging.DEBUG)
-    elif args.version:
-        log.logger.info(f"version: {defs.VERSION}")
-        return
-    log.logger.debug(args)
-
-    if args.cmd == CMD_REM:
-        if args.cmd_rem == CMD_REM_SET:
-            cfg.setremote(args.name, args.uri, args.branch)
-        if args.cmd_rem == CMD_REM_DEL:
-            cfg.delremote(args.name)
-        if args.cmd_rem == CMD_REM_LIST:
-            for name, remote, branch in cfg.iterremotes():
-                print(name, remote, branch)
-    elif args.cmd == CMD_INSTALL:
-        with log.Report() as report:
-            installpkgs(report, *args.pkgname, force=args.force, ignorearch=args.ignorearch,
-                        skipchecksums=args.skipchecksums, skipinteg=args.skipinteg,
-                        skippgpcheck=args.skippgpcheck, noconfirm=args.noconfirm)
-    elif args.cmd == CMD_UPDATE:
-        if args.agr:
-            agrcmd.interactive("python", "-m", "pip", "install", "https://github.com/hbiyik/agr/archive/master.zip",
-                               "--break-system-packages", "--force-reinstall")
-            log.logger.info(f"Agr updated")
-            agrcmd.interactive("python", "-m", "agr", "--version")
+    args = parser.parse_args()
+    with log.Report() as report:
+        if args.debug:
+            log.setlevel(logging.DEBUG)
+        elif args.version:
+            report.log(f"version: {defs.VERSION}")
             return
-        with log.Report() as report:
-            updates = []
+        log.logger.debug(args)
+
+        if args.cmd == CMD_REM:
+            if args.cmd_rem == CMD_REM_SET:
+                config.CFG.setremote(args.name, args.uri, args.branch)
+            if args.cmd_rem == CMD_REM_DEL:
+                config.CFG.delremote(args.name)
+            if args.cmd_rem == CMD_REM_LIST:
+                for name, remote, branch in config.CFG.iterremotes():
+                    report.log(f"{name}:{remote}:{branch}")
+        elif args.cmd == CMD_INSTALL:
+            for line in repo.installpkgs(*args.pkgname, ignorearch=args.ignorearch,
+                                         skipchecksums=args.skipchecksums, skipinteg=args.skipinteg,
+                                         skippgpcheck=args.skippgpcheck, noconfirm=args.noconfirm,
+                                         force=args.force):
+                report.log(line)
+        elif args.cmd == CMD_UPDATE:
+            if args.agr:
+                update.updateagr()
+                report.log(f"Agr updated")
+                return
             ignores = []
             if args.ignore is not None:
                 ignores = [x.strip() for x in args.ignore.split(",")]
-            for _rname, remote, branch in cfg.iterremotes():
-                for pkgb in repo.iterpkgs(remote, branch):
-                    if pkgb.pkgbase in ignores or pkgb.version is None:
-                        continue
-                    isins, sysver = pkgb.checkinstall(pkgb.pkgbase)
-                    if isins and pkgb.version.segments != sysver.segments and pkgb.pkgbase not in updates:
-                        report.log(f"Updating {pkgb.pkgbase}: {sysver.version} -> {pkgb.version.version}")
-                        updates.append(pkgb.pkgbase)
-            installpkgs(report, *updates, force=args.force, ignorearch=args.ignorearch,
-                        skipchecksums=args.skipchecksums, skipinteg=args.skipinteg,
-                        skippgpcheck=args.skippgpcheck, noconfirm=args.noconfirm)
-    elif args.cmd == CMD_STATUS:
-        status(True)
-    else:
-        status()
+            for line in repo.installpkgs(*update.pkgstoupdate(*ignores), ignorearch=args.ignorearch,
+                                         skipchecksums=args.skipchecksums, skipinteg=args.skipinteg,
+                                         skippgpcheck=args.skippgpcheck, noconfirm=args.noconfirm,
+                                         force=args.force):
+                report.log(line)
+        else:
+            status(report)
 
 
 if __name__ == "__main__":

@@ -4,74 +4,119 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import os
+import time
 
+from libagr import cache
 from libagr import cmd
 from libagr import defs
 from libagr import git
 from libagr import log
 from libagr import version
-
-# TODO: Manually parse more instead of interpreting srcinfo for better speed
-SHELL_PKGBASE = "echo ${pkgbase}"
-SHELL_PKGNAME = "echo ${pkgname[*]}"
-SHELL_PKGVER = "echo ${pkgver}"
-SHELL_DYNAMIC = "echo $(type -t pkgver)"
+from libagr import config
 
 
-def get_system_packages():
-    packages = cmd.stdout("pacman", "-Q")
-    system_packages = {}
-    for package in packages.split("\n"):
-        pkg, ver = package.split(" ")
-        system_packages[pkg] = version.Version(ver)
-    return system_packages
+SHELL_ISDYNAMIC = "\necho \"isdynamic = $(type -t pkgver)\""
+with open("/usr/share/makepkg/srcinfo.sh", "r") as f:
+    SHELL_SRCINFO = "\n" + f.read()
+SHELL_SRCINFO += "\nwrite_srcinfo"
+SHELL_SRCINFO += SHELL_ISDYNAMIC
+
+
+class Dependency:
+    def __init__(self, pkgstring):
+        self.pkgname = pkgstring
+        self.compare = None
+        self.version = None
+        for delim in [defs.COMP_GE, defs.COMP_LE, defs.COMP_G, defs.COMP_L, defs.COMP_EQ]:
+            if delim in pkgstring:
+                dependsplit = pkgstring.split(delim)
+                self.pkgname = dependsplit[0].strip()
+                self.version = version.Version(dependsplit[1].strip())
+                self.compare = delim
+                break
+
+    def __eq__(self, other):
+        return self.pkgname == other.pkgname
 
 
 class Pkgbuild:
-    system_packages = get_system_packages()
-    cache_srcinfo = {}
-    cache_download = {}
-
     def __init__(self, remote, pkgpath):
+        self._srcinfo = None
         self.remote = remote
-        self.pkgpath = git.repopkgpath(remote, pkgpath)
-        self._workpath = None
-        self.system_packages = {}
+        self.pkgpath = pkgpath
+        self.pkgfullpath = git.repopkgpath(remote, self.pkgpath)
+        self.reponame = git.reponame(self.pkgfullpath)
+        self.workpath = os.path.join(defs.PKG_PATH, self.reponame)
+        self.epoch = None
+        self.pkgrel = None
+        self.pkgver = None
+        self.pkgbase = None
+        self.pkgdesc = None
+        self.pkgname = []
+        self.pkgnames = []
+        self.depends = {}
+        self.makedepends = []
+        self.optdepends = {}
+        self.provides = {}
+        self.isdynamic = False
+        self.remotename = None
+        self.commit = git.getcommit(git.repopath(self.remote), self.pkgpath)
+        for rname, rpath, _branch in config.CFG.iterremotes():
+            if rpath == self.remote:
+                self.remotename = rname
+                break
+        self.islocal = os.path.exists(self.srcinfo_path())
+        self.parse()
 
-    def hascache(self, cache_type, key):
-        cache = getattr(Pkgbuild, f"cache_{cache_type}")
-        return key in cache
+    def parse(self):
+        self.pkgname = []
+        self.pkgnames = []
+        self.depends = {}
+        self.makedepends = []
+        self.optdepends = {}
+        self.provides = {}
 
-    def makecache(self, cache_type, key, value):
-        cache = getattr(Pkgbuild, f"cache_{cache_type}")
-        cache[key] = value
+        boolkeys = ["isdynamic"]
+        strkeys = ["epoch", "pkgrel", "pkgver", "pkgbase"]
+        listkeys = ["pkgname", "makedepends"]
+        dictkeys = ["depends", "provides", "optdepends"]
 
-    def getcache(self, cache_type, key):
-        cache = getattr(Pkgbuild, f"cache_{cache_type}")
-        return cache[key]
+        curpkgname = None
+        for k, v in self.itersrcinfo():
+            if k == "pkgbase" or k == "pkgname":
+                curpkgname = v
+            for boolkey in boolkeys:
+                if k == boolkey:
+                    setattr(self, boolkey, v != "")
+                    break
+            for strkey in strkeys:
+                if k == strkey:
+                    setattr(self, strkey, v)
+                    break
+            for listkey in listkeys:
+                if k == listkey:
+                    attr = getattr(self, listkey)
+                    val = Dependency(v) if "depends" in listkey else v
+                    if val not in attr:
+                        attr.append(val)
+            for dictkey in dictkeys:
+                if k == dictkey:
+                    attr = getattr(self, dictkey)
+                    if curpkgname not in attr:
+                        attr[curpkgname] = []
+                    val = Dependency(v) if "depend" in dictkey else Dependency(v).pkgname
+                    if val not in attr[curpkgname]:
+                        attr[curpkgname].append(val)
 
-    def delcache(self, cache_type, key):
-        cache = getattr(Pkgbuild, f"cache_{cache_type}")
-        return cache.pop(key)
+        # collect all possible package name this pkgbuild provides under pkgnames
+        for k, v in self.provides.items():
+            for provide in v:
+                if provide not in self.pkgnames:
+                    self.pkgnames.append(provide)
 
-    def isdnynamicver(self):
-        return cmd.source_stdout("PKGBUILD", SHELL_DYNAMIC, cwd=self.pkgpath) == "function"
-
-    @property
-    def workpath(self):
-        if self._workpath is None:
-            self._workpath = os.path.join(defs.PKG_PATH, self.pkgbase)
-            if not os.path.exists(self._workpath):
-                os.makedirs(self._workpath)
-            git.syncworking(self.remote, self.pkgpath, self._workpath)
-        return self._workpath
-
-    @property
-    def srcinfo(self):
-        if not self.hascache("srcinfo", self.pkgpath):
-            log.logger.info(f"Getting SRCINFO of {git.reponame(self.pkgpath)}")
-            self.makecache("srcinfo", self.pkgpath, cmd.stdout("makepkg", "--printsrcinfo", cwd=self.workpath))
-        return self.getcache("srcinfo", self.pkgpath)
+        for pkg in self.pkgname:
+            if pkg not in self.pkgnames:
+                self.pkgnames.append(pkg)
 
     def itersrcinfo(self):
         for line in self.srcinfo.split("\n"):
@@ -80,126 +125,152 @@ class Pkgbuild:
                 k, v = splits
                 yield k.strip(), v.strip()
 
-    def getsources(self):
-        try:
-            if not self.hascache("download", self.workpath):
-                log.logger.info(f"Updating sources of {git.reponame(self.pkgpath)}")
-                if cmd.interactive("makepkg", "-o", "-d", "-A", cwd=self.workpath):
-                    self.makecache("download", self.workpath, True)
-            return self.getcache("download", self.workpath)
-        except Exception:
-            log.logger.warn("Error Downloading sources, check PKGBUILD")
-            return None
+    @cache.Cache.runonce
+    def sync(self):
+        git.syncworking(self.remote, self.pkgfullpath, self.workpath)
+        self.islocal = True
+        if self.isdynamic:
+            t1 = time.time()
+            log.logger.info(f"Started downloading sources of {self.reponame}")
+            cmd.interactive("makepkg", "-o", "-d", "-A", cwd=self.workpath, env=defs.ENV_GITNOSTDIN)
+            deltat = time.time() - t1
+            log.logger.info(f"Finished downloading sources of {self.reponame} in {deltat:.2f} seconds")
+            _srcinfo = self.srcinfo_cache()
+            self._srcinfo = self.makesrcinfo(self.pkgbuild_path(), self.srcinfo_path())
+        self.parse()
 
-    def srcinfo_keys(self, key):
-        for k, v in self.itersrcinfo():
-            if k == key:
-                yield v
+    def srcinfo_path(self, islocal=True):
+        srcinfo_dir = os.path.join(defs.CACHE_PATH, self.remotename, self.pkgpath, "local" if islocal else "remote")
+        srcinfo_name = f"{self.commit}{defs.SRCINFO}"
+        return os.path.join(srcinfo_dir, srcinfo_name)
+
+    def pkgbuild_path(self, islocal=True):
+        return os.path.join(self.workpath if islocal else self.pkgfullpath, defs.PKGBUILD)
+
+    def srcinfo_cache(self, islocal=True):
+        srcinfo_path = self.srcinfo_path(islocal)
+        srcinfo_dir = os.path.dirname(srcinfo_path)
+        srcinfo_name = os.path.basename(srcinfo_path)
+        os.makedirs(srcinfo_dir, exist_ok=True)
+        srcinfo = None
+        for fname in os.listdir(srcinfo_dir):
+            fpath = os.path.join(srcinfo_dir, fname)
+            if fname == srcinfo_name:
+                with open(fpath, "r") as f:
+                    srcinfo = f.read()
+            else:
+                # remove unused cache
+                os.remove(fpath)
+        return srcinfo
+
+    def makesrcinfo(self, pkgbuild_path, srcinfo_path):
+        # generate srcinfo
+        with open(pkgbuild_path, "r") as f:
+            src_pkgbuild = f.read()
+        shell_script = src_pkgbuild + SHELL_SRCINFO
+        srcinfo = cmd.stdout("bash", "-c", shell_script, cwd=os.path.dirname(pkgbuild_path))
+        # cache srcinfo
+        with open(srcinfo_path, "w") as f:
+            f.write(srcinfo)
+        return srcinfo
 
     @property
-    def pkgver(self):
-        if self.isdnynamicver():
-            if not self.hascache("download", self.workpath) and self.hascache("srcinfo", self.pkgpath):
-                self.delcache("srcinfo", self.pkgpath)
-            if self.getsources() is None:
-                return None
-        return self.srcinfo_keys("pkgver").__next__()
-
-    @property
-    def pkgrel(self):
-        rel = list(self.srcinfo_keys("pkgrel"))
-        if len(rel) > 0:
-            return rel[0]
-
-    @property
-    def epoch(self):
-        rel = list(self.srcinfo_keys("epoch"))
-        if len(rel) > 0:
-            return rel[0]
+    def srcinfo(self):
+        if not self._srcinfo:
+            # check if cache exists
+            srcinfo = self.srcinfo_cache(self.islocal)
+            if srcinfo:
+                self._srcinfo = srcinfo
+            else:
+                self._srcinfo = self.makesrcinfo(self.pkgbuild_path(self.islocal),
+                                                 self.srcinfo_path(self.islocal))
+        return self._srcinfo
 
     @property
     def version(self):
+        if self.isdynamic and not self.islocal:
+            return None
         vers = ""
-        epoch = self.epoch
-        pkgrel = self.pkgrel
         if self.epoch:
-            vers = f"{epoch}:"
-        pkgver = self.pkgver
-        if pkgver is None:
-            return
-        vers += pkgver
-        if pkgrel:
-            vers += f"-{pkgrel}"
+            vers = f"{self.epoch}:"
+        vers += self.pkgver
+        if self.pkgrel:
+            vers += f"-{self.pkgrel}"
         return version.Version(vers)
 
-    @property
-    def pkgbase(self):
-        base = cmd.source_stdout("PKGBUILD", SHELL_PKGBASE, cwd=self.pkgpath)
-        if base == "":
-            return self.pkgnames[0]
-        else:
-            return base
-
-    @property
-    def pkgnames(self):
-        return cmd.source_stdout("PKGBUILD", SHELL_PKGNAME, cwd=self.pkgpath).split(" ")
-
-    def checkinstall(self, pkgname=None):
-        pkgname = pkgname or self.pkgbase
-        if pkgname in Pkgbuild.system_packages:
-            return True, Pkgbuild.system_packages[pkgname]
-        else:
-            return False, None
-
-    def haspkg(self, pkgname):
-        if(pkgname == self.pkgbase):
+    def pkgrealname(self, pkgname):
+        if pkgname in self.pkgname:
             return pkgname
-        subpkgname = self.pkgbase
-        for k, v in self.itersrcinfo():
-            if k == "pkgname":
-                if pkgname == v:
-                    return pkgname
-                subpkgname = v
-            if k == "provides" and v.split("=")[0] == pkgname:
-                return subpkgname
+        if pkgname in self.pkgnames:
+            for pkg, provides in self.provides.items():
+                for provide in provides:
+                    if provide == pkgname:
+                        return pkg
 
-    def deps(self, pkgname):
-        depends = []
-        if pkgname == self.pkgbase:
-            for k, v in self.itersrcinfo():
-                if k == "pkgname":
-                    break
-                if k == "depends":
-                    depends.append(v)
-        subpkg = None
-        if not depends:
-            for k, v in self.itersrcinfo():
-                if k == "pkgname" and v == pkgname:
-                    subpkg = v
-                if k == "depends" and subpkg:
-                    depends.append(v)
+    def install(self, *pkgs, **kwargs):
+        installs = []
 
-        deps = []
-        for depend in depends:
-            delim = None
-            dependsplit = []
-            for delim in [">=", "<=", ">", "<", "=", None]:
-                if not delim:
-                    break
-                if delim in depend:
-                    dependsplit = depend.split(delim)
-                    break
-            depname = depend
-            vers = None
-            if delim:
-                depname = dependsplit[0]
-                vers = version.Version(dependsplit[1])
-            deps.append([depname, delim, vers])
-        return deps
+        self.sync()
 
-    def install(self, **kwargs):
+        # build / install with actual name
+        for pkg in pkgs:
+            if pkg not in self.pkgname:
+                raise RuntimeError(f"Pkgbuild has no package {pkg}")
+
+        # parse makepkg flags
         args = []
         for k, v in kwargs.items():
             if v:
                 args.append(f"--{k}")
-        return cmd.interactive("makepkg", "-s", "-i", *args, cwd=self.workpath)
+
+        # check the artifacts that needs to be installed
+        packages = cmd.stdout("makepkg", "--packagelist", *args, cwd=self.workpath)
+        for package in [x.split("/")[-1] for x in packages.split("\n")]:
+            if not pkgs and self.version in package:
+                installs.append(package)
+                continue
+            for pkg in pkgs:
+                if package.startswith(f"{pkg}-{self.version}"):
+                    installs.append(package)
+                    break
+
+        # if all artifacts are available do not rebuild by default
+        # if some exists and some dont, force rebuild
+        hasall = True
+        hassome = False
+        for install in installs:
+            # TO-DO: Check if pkgdestdir forced
+            if not os.path.exists(os.path.join(self.workpath, install)):
+                hasall = False
+            else:
+                hassome = True
+
+        force = "--force" in args
+        if not hasall or force:
+            if hassome and not force:
+                args.append("--force")
+            build = cmd.interactive("makepkg", "-s", *args, cwd=self.workpath)
+        else:
+            build = True
+
+        if build:
+            # parse pacman flags from makepkg/agr flags
+            pacmanflags = ["noconfirm"]
+            for pacmanflag in pacmanflags:
+                if pacmanflag in kwargs and kwargs[pacmanflag]:
+                    installs.append(f"--{pacmanflag}")
+
+            # install with pacman
+            return cmd.interactive("sudo", "pacman", "-U", *installs, cwd=self.workpath)
+
+    def dlagents(self):
+        dlagents = []
+        for dlagent in [x for x in self.makedepends if x.pkgname.endswith("-dlagent")]:
+            if dlagent not in dlagents:
+                dlagents.append(dlagent)
+        return dlagents
+
+
+@cache.Cache.runonce
+def getpkgbuild(remote, pkgpath):
+    return Pkgbuild(remote, pkgpath)

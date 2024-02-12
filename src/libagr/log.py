@@ -5,17 +5,19 @@ Created on Feb 1, 2024
 '''
 import logging
 import copy
+import time
+import sys
 
 MAPPING = {'DEBUG': 37,  # white
            'INFO': 36,  # cyan
-           'RESULT': 35,  # magenta
+           'AGR': 32,  # green
            'WARNING': 33,  # yellow
            'ERROR': 31,  # red
            'CRITICAL': 41,  # white on red bg
            }
 
 RESULT_LEVEL = 99
-logging.addLevelName(RESULT_LEVEL, "RESULT")
+logging.addLevelName(RESULT_LEVEL, "AGR")
 
 
 def result(self, message, *args, **kws):
@@ -45,7 +47,7 @@ logger = logging.getLogger('log')
 logger.setLevel(logging.INFO)
 ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
-formatter = ColoredFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = ColoredFormatter('%(levelname)18s | %(message)s')
 ch.setFormatter(formatter)
 logger.addHandler(ch)
 
@@ -58,6 +60,7 @@ def setlevel(level):
 class Report:
     def __init__(self):
         self.buffer = []
+        self.startime = time.time()
 
     def log(self, msg):
         self.buffer.append(msg)
@@ -66,5 +69,14 @@ class Report:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        retval = False
+        if exc_type == KeyboardInterrupt:
+            self.log(f"User requested cancel")
+            retval = True
+        deltat = time.time() - self.startime
+        self.log(f"Result time: {deltat:.2f} seconds")
         for msg in self.buffer:
             logger.result(msg)
+        if retval:
+            sys.exit()
+        return retval

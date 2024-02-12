@@ -40,3 +40,6 @@ class Config:
         if name in self.cfg[KEY_REMOTES]:
             self.cfg[KEY_REMOTES].pop(name)
         self.save()
+
+
+CFG = Config()

@@ -4,8 +4,6 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import subprocess
-import tempfile
-
 from libagr import log
 
 
@@ -20,7 +18,10 @@ def interactive(*cmd, **kwargs):
 def stdout(*cmd, **kwargs):
     log.logger.debug(f"Executing: '{' '.join(cmd)}', kwargs: {kwargs}")
     buf = ""
-    p = subprocess.Popen(cmd, **kwargs, stdout=subprocess.PIPE)
+    p = subprocess.Popen(cmd, **kwargs,
+                         stdout=subprocess.PIPE,
+                         stdin=subprocess.DEVNULL,
+                         stderr=subprocess.STDOUT)
     for line in iter(p.stdout.readline, b""):
         line = line.decode()
         buf += line
@@ -31,12 +32,3 @@ def stdout(*cmd, **kwargs):
     if buf.endswith("\n"):
         buf = buf[:-1]
     return buf
-
-
-def source_stdout(source, cmd, **kwargs):
-    log.logger.debug(f"Executing: '{cmd}', with source: {source}, kwargs: {kwargs}")
-    with tempfile.NamedTemporaryFile("w", delete=False) as f:
-        f.write(f"source {source} && {cmd}")
-        f.close()
-        out = stdout("bash", f.name, **kwargs)
-    return out
