@@ -11,7 +11,7 @@ REPO_PATH = os.path.join(BASE_PATH, "gitrepos")
 PKG_PATH = os.path.join(BASE_PATH, "packages")
 CACHE_PATH = os.path.join(BASE_PATH, "cache")
 CFG_PATH = os.path.join(BASE_PATH, "config.json")
-VERSION = "0.0.5"
+VERSION = "0.1.0"
 SRCINFO = ".SRCINFO"
 PKGBUILD = "PKGBUILD"
 
