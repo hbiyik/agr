@@ -4,7 +4,6 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import os
-import re
 
 from libagr import cache
 from libagr import config
@@ -19,23 +18,39 @@ from libagr.pkgbuild import Dependency
 
 cfg = config.Config()
 
-INSTALLED = {}
 
-for _match in re.finditer("Name\s*?\:\s*?(.+?)\nVersion\s*?\:\s*?(.+?)\n.+?Provides\s*?\:\s*?(.+?)\n",
-                          cmd.stdout("pacman", "-Qi"), re.DOTALL):
-    pkgname = _match.group(1)
-    version = _match.group(2)
-    provides = _match.group(3)
-    if provides != "None":
-        provides = [pkgbuild.Dependency(x) for x in provides.split(" ") if x != ""]
-    else:
-        provides = []
-    pkg = Dependency(f"{pkgname}={version}")
-    if pkgname not in [p.pkgname for p in provides]:
-        provides.append(pkg)
-    for provide in provides:
-        if provide.pkgname not in INSTALLED:
-            INSTALLED[provide.pkgname] = pkg
+@cache.Cache.runonce
+def getinstalled():
+    installed = {}
+    index = 0
+    for line in cmd.stdout("pacman", "-Qi").split("\n"):
+        matches = line.split(" : ")
+        if matches and len(matches) == 2:
+            index += 1
+            if index == 1:
+                pkgname = matches[1].strip()
+            elif index == 2:
+                version = matches[1].strip()
+            elif index == 8:
+                provides = matches[1].strip()
+            elif index > 8:
+                continue
+        else:
+            index = 0
+            if not provides[0].isupper():
+                provideslist = [pkgbuild.Dependency(x) for x in provides.split(" ") if x != ""]
+            else:
+                provideslist = []
+            pkg = Dependency(f"{pkgname}={version}")
+            if pkgname not in [x.pkgname for x in provideslist]:
+                provideslist.append(pkg)
+            for provide in provideslist:
+                if provide.pkgname not in installed:
+                    installed[provide.pkgname] = pkg
+    return installed
+
+
+INSTALLED = getinstalled()
 
 
 def checkinstall(pkgname):
