@@ -35,7 +35,7 @@ def getinstalled():
                 provides = matches[1].strip()
             elif index > 8:
                 continue
-        else:
+        elif line == "":
             index = 0
             if not provides[0].isupper():
                 provideslist = [pkgbuild.Dependency(x) for x in provides.split(" ") if x != ""]
