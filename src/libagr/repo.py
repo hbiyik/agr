@@ -108,11 +108,10 @@ def getdeps(*pkgnames, make=False, excludes=None):
             if pkgrealname not in excludes:
                 excludes.append(pkgrealname)
             for dep in pkgb.makedepends if make else pkgb.depends.get(pkgrealname, []):
-                dep_pkgb, dep_pkgrealname = getpkgbuild(dep.pkgname)
-                if dep_pkgb and dep_pkgrealname not in excludes:
-                    dep.pkgname = dep_pkgrealname
-                    excludes.append(dep_pkgrealname)
-                    if dep_pkgrealname not in [x.pkgname for x in deps]:
+                dep_pkgb, _dep_pkgrealname = getpkgbuild(dep.pkgname)
+                if dep_pkgb and dep.pkgname not in excludes:
+                    excludes.append(dep.pkgname)
+                    if dep.pkgname not in [x.pkgname for x in deps]:
                         deps.append(dep)
     if deps:
         subdeps = getdeps(*[x.pkgname for x in deps], make=make, excludes=excludes)
