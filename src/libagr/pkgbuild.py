@@ -12,7 +12,6 @@ from libagr import defs
 from libagr import git
 from libagr import log
 from libagr import version
-from libagr import config
 
 
 SHELL_ISDYNAMIC = "\necho \"isdynamic = $(type -t pkgver)\""
@@ -20,6 +19,14 @@ with open("/usr/share/makepkg/srcinfo.sh", "r") as f:
     SHELL_SRCINFO = "\n" + f.read()
 SHELL_SRCINFO += "\nwrite_srcinfo"
 SHELL_SRCINFO += SHELL_ISDYNAMIC
+
+
+def foldername(path):
+    if path.endswith("/"):
+        path = path[:-1]
+    if path.endswith(".git"):
+        path = path[:-4]
+    return os.path.split(path)[-1]
 
 
 class Dependency:
@@ -40,13 +47,13 @@ class Dependency:
 
 
 class Pkgbuild:
-    def __init__(self, remote, pkgpath):
+    def __init__(self, rname, pkgpath):
         self._srcinfo = None
-        self.remote = remote
+        self.remotename = rname
         self.pkgpath = pkgpath
-        self.pkgfullpath = git.repopkgpath(remote, self.pkgpath)
-        self.reponame = git.reponame(self.pkgfullpath)
-        self.workpath = os.path.join(defs.PKG_PATH, self.reponame)
+        self.pkgfullpath = git.repopkgpath(self.remotename, self.pkgpath)
+        self.reponame = foldername(self.pkgfullpath)
+        self.workpath = os.path.join(defs.PKG_PATH, self.remotename, self.reponame)
         self.epoch = None
         self.pkgrel = None
         self.pkgver = None
@@ -59,12 +66,7 @@ class Pkgbuild:
         self.optdepends = {}
         self.provides = {}
         self.isdynamic = False
-        self.remotename = None
-        self.commit = git.getcommit(git.repopath(self.remote), self.pkgpath)
-        for rname, rpath, _branch in config.CFG.iterremotes():
-            if rpath == self.remote:
-                self.remotename = rname
-                break
+        self.commit = git.getcommit(git.repopath(self.remotename), self.pkgpath)
         self.islocal = os.path.exists(self.srcinfo_path())
         self.parse()
 
@@ -127,7 +129,7 @@ class Pkgbuild:
 
     @cache.Cache.runonce
     def sync(self):
-        git.syncworking(self.remote, self.pkgfullpath, self.workpath)
+        git.syncworking(self.remotename, self.pkgfullpath, self.workpath)
         self.islocal = True
         if self.isdynamic:
             t1 = time.time()
@@ -140,7 +142,7 @@ class Pkgbuild:
         self.parse()
 
     def srcinfo_path(self, islocal=True):
-        srcinfo_dir = os.path.join(defs.CACHE_PATH, self.remotename, self.pkgpath, "local" if islocal else "remote")
+        srcinfo_dir = os.path.join(defs.CACHE_PATH, self.remotename, self.reponame, "local" if islocal else "remote")
         srcinfo_name = f"{self.commit}{defs.SRCINFO}"
         return os.path.join(srcinfo_dir, srcinfo_name)
 
@@ -272,5 +274,5 @@ class Pkgbuild:
 
 
 @cache.Cache.runonce
-def getpkgbuild(remote, pkgpath):
-    return Pkgbuild(remote, pkgpath)
+def getpkgbuild(rname, pkgpath):
+    return Pkgbuild(rname, pkgpath)

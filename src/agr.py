@@ -38,13 +38,13 @@ def logpkgstate(pkgb):
 
 
 def status(report):
-    for rname, remote, _branch in config.CFG.iterremotes():
-        header = f"Repository: {rname} : {remote}"
+    for rname in config.CFG.iterremotes():
+        header = f"Repository: {rname} : {config.CFG.getremote(rname)}"
         report.log("")
         report.log("    " + header)
         report.log("    " + "-" * len(header))
         pman = multi.ProcMan(numworkers=defs.NUMCORES * 2, waittime=0)
-        for pkgb in repo.allpkgbuilds(remote=remote):
+        for pkgb in repo.allpkgbuilds(rname):
             if isinstance(pkgb, Exception):
                 continue
             pman.add(logpkgstate, pkgb)
@@ -117,8 +117,8 @@ def main():
             if args.cmd_rem == CMD_REM_DEL:
                 config.CFG.delremote(args.name)
             if args.cmd_rem == CMD_REM_LIST:
-                for name, remote, branch in config.CFG.iterremotes():
-                    report.log(f"{name}:{remote}:{branch}")
+                for rname in config.CFG.iterremotes():
+                    report.log(f"{rname}:{config.CFG.getremote(rname)}")
         elif args.cmd == CMD_INSTALL:
             for line in repo.installpkgs(*args.pkgname, ignorearch=args.ignorearch,
                                          skipchecksums=args.skipchecksums, skipinteg=args.skipinteg,

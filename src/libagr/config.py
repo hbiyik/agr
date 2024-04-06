@@ -28,9 +28,12 @@ class Config:
         with open(defs.CFG_PATH, "w") as f:
             self.cfg = json.dump(self.cfg, f)
 
+    def getremote(self, name):
+        return self.cfg[KEY_REMOTES].get(name, (None, None))
+
     def iterremotes(self):
-        for name, (remote, branch) in self.cfg[KEY_REMOTES].items():
-            yield name, remote, branch
+        for name in self.cfg[KEY_REMOTES]:
+            yield name
 
     def setremote(self, name, remote, branch=defs.DEF_BRANCH):
         self.cfg[KEY_REMOTES][name] = (remote, branch)

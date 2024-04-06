@@ -4,6 +4,7 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import os
+import shutil
 
 from libagr import cache
 from libagr import config
@@ -57,9 +58,9 @@ def checkinstall(pkgname):
     return INSTALLED.get(pkgname)
 
 
-def iterpkgs(remote, branch=defs.DEF_BRANCH):
-    git.syncremote(remote, branch)
-    rpath = git.repopath(remote)
+def iterpkgs(rname):
+    git.syncremote(rname)
+    rpath = git.repopath(rname)
     for root, _subdirs, files in os.walk(rpath, followlinks=False):
         if defs.IGNORE_FLAG in files or defs.PKGBUILD not in files:
             continue
@@ -67,23 +68,55 @@ def iterpkgs(remote, branch=defs.DEF_BRANCH):
         yield pkgpath
 
 
+def clean_repos(pkgbuilds=None, rname=None):
+    rnames = []
+    if pkgbuilds is None:
+        pkgbuilds = []
+
+    for currname in config.CFG.iterremotes():
+        if rname is None or rname == currname:
+            rnames.append(currname)
+
+    # clean repo level
+    for base in [defs.PKG_PATH, defs.REPO_PATH, defs.CACHE_PATH]:
+        for fname in os.listdir(base):
+            if fname not in rnames:
+                shutil.rmtree(os.path.join(base, fname), ignore_errors=True)
+
+    # clean pkg level
+    for base in [defs.PKG_PATH, defs.CACHE_PATH]:
+        for rname in rnames:
+            rpath = os.path.join(base, rname)
+            if os.path.exists(rpath):
+                for fname in os.listdir(rpath):
+                    found = False
+                    for pkgb in pkgbuilds:
+                        if pkgb.remotename == rname and pkgb.reponame == fname:
+                            found = True
+                    if not found:
+                        dpath = os.path.join(rpath, fname)
+                        log.logger.warning(f"Cleaning {dpath}")
+                        shutil.rmtree(dpath, ignore_errors=True)
+
+
 @cache.Cache.runonce
-def allpkgbuilds(remote=None):
+def allpkgbuilds(rname=None):
     pman = multi.ProcMan(numworkers=defs.NUMCORES * 2, waittime=0)
-    for _rname, premote, branch in cfg.iterremotes():
-        if remote is not None and remote != premote:
+    for currname in cfg.iterremotes():
+        if rname is not None and currname != rname:
             continue
-        for pkgpath in iterpkgs(premote, branch):
-            pman.add(pkgbuild.getpkgbuild, premote, pkgpath)
+        for pkgpath in iterpkgs(currname):
+            pman.add(pkgbuild.getpkgbuild, currname, pkgpath)
     pman.join()
     pkgbuilds = []
     excs = []
     for result, args, _kwargs in pman.returns.values():
         if isinstance(result, Exception):
-            log.logger.warning(f"Error in {git.reponame(args[0])}:{args[1]} check {defs.SRCINFO}")
+            log.logger.warning(f"Error in {args[0]}:{args[1]} check {defs.PKGBUILD}")
             excs.append(result)
         else:
             pkgbuilds.append(result)
+    clean_repos(pkgbuilds, rname=rname)
     return pkgbuilds + excs
 
 
