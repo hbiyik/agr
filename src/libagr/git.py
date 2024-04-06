@@ -11,7 +11,6 @@ from libagr import cmd
 from libagr import config
 from libagr import log
 from libagr import cache
-from codecs import ignore_errors
 
 
 @cache.Cache.runonce
