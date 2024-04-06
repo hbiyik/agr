@@ -70,17 +70,19 @@ def iterpkgs(rname):
 
 def clean_repos(pkgbuilds=None, rname=None):
     rnames = []
+    allrnames = []
     if pkgbuilds is None:
         pkgbuilds = []
 
     for currname in config.CFG.iterremotes():
         if rname is None or rname == currname:
             rnames.append(currname)
+        allrnames.append(currname)
 
     # clean repo level
     for base in [defs.PKG_PATH, defs.REPO_PATH, defs.CACHE_PATH]:
         for fname in os.listdir(base):
-            if fname not in rnames:
+            if fname not in allrnames:
                 shutil.rmtree(os.path.join(base, fname), ignore_errors=True)
 
     # clean pkg level
