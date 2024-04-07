@@ -67,26 +67,29 @@ def iterpkgs(rname):
         yield pkgpath
 
 
-def clean_repos(pkgbuilds=None, rname=None):
+def clean_repos():
     rnames = []
-    allrnames = []
+
+    for currname in config.CFG.iterremotes():
+        rnames.append(currname)
+
+    for base in [defs.PKG_PATH, defs.REPO_PATH, defs.CACHE_PATH]:
+        for fname in os.listdir(base):
+            if fname not in rnames:
+                dpath = os.path.join(base, fname)
+                log.logger.info(f"Cleaning {dpath}")
+                cmd.stdout(f"rm", "-rf", dpath)
+
+
+def clean_pkgs(pkgbuilds=None, rname=None):
+    rnames = []
     if pkgbuilds is None:
         pkgbuilds = []
 
     for currname in config.CFG.iterremotes():
         if rname is None or rname == currname:
             rnames.append(currname)
-        allrnames.append(currname)
 
-    # clean repo level
-    for base in [defs.PKG_PATH, defs.REPO_PATH, defs.CACHE_PATH]:
-        for fname in os.listdir(base):
-            if fname not in allrnames:
-                dpath = os.path.join(base, fname)
-                log.logger.warning(f"Cleaning {dpath}")
-                cmd.stdout(f"rm", "-rf", dpath)
-
-    # clean pkg level
     for base in [defs.PKG_PATH, defs.CACHE_PATH]:
         for rname in rnames:
             rpath = os.path.join(base, rname)
@@ -98,7 +101,7 @@ def clean_repos(pkgbuilds=None, rname=None):
                             found = True
                     if not found:
                         dpath = os.path.join(rpath, fname)
-                        log.logger.warning(f"Cleaning {dpath}")
+                        log.logger.info(f"Cleaning {dpath}")
                         cmd.stdout(f"rm", "-rf", dpath)
 
 
@@ -119,7 +122,8 @@ def allpkgbuilds(rname=None):
             excs.append(result)
         else:
             pkgbuilds.append(result)
-    clean_repos(pkgbuilds, rname=rname)
+    clean_repos()
+    clean_pkgs(pkgbuilds, rname=rname)
     return pkgbuilds + excs
 
 
