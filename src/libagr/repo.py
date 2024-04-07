@@ -4,7 +4,6 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import os
-import shutil
 
 from libagr import cache
 from libagr import config
@@ -83,7 +82,9 @@ def clean_repos(pkgbuilds=None, rname=None):
     for base in [defs.PKG_PATH, defs.REPO_PATH, defs.CACHE_PATH]:
         for fname in os.listdir(base):
             if fname not in allrnames:
-                shutil.rmtree(os.path.join(base, fname), ignore_errors=True)
+                dpath = os.path.join(base, fname)
+                log.logger.warning(f"Cleaning {dpath}")
+                cmd.stdout(f"rm", "-rf", dpath)
 
     # clean pkg level
     for base in [defs.PKG_PATH, defs.CACHE_PATH]:
@@ -98,7 +99,7 @@ def clean_repos(pkgbuilds=None, rname=None):
                     if not found:
                         dpath = os.path.join(rpath, fname)
                         log.logger.warning(f"Cleaning {dpath}")
-                        shutil.rmtree(dpath, ignore_errors=True)
+                        cmd.stdout(f"rm", "-rf", dpath)
 
 
 @cache.Cache.runonce

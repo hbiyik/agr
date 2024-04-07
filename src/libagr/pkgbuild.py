@@ -22,6 +22,7 @@ SHELL_SRCINFO += SHELL_ISDYNAMIC
 
 
 def foldername(path):
+    path = os.path.realpath(path)
     if path.endswith("/"):
         path = path[:-1]
     if path.endswith(".git"):

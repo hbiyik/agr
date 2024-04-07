@@ -83,7 +83,7 @@ def syncremote(rname):
             cmd.stdout("git", "reset", "--hard", f"origin/{branch}", cwd=rpath, env=defs.ENV_GITNOSTDIN)
             syncsubs(rpath)
             return
-        shutil.rmtree(rpath, ignore_errors=True)
+        cmd.stdout("rm", "-rf", rpath)
     os.makedirs(rpath, exist_ok=True)
     cmd.stdout("git", "clone", "-b", branch, remote, ".", cwd=rpath, env=defs.ENV_GITNOSTDIN)
     syncsubs(rpath)
