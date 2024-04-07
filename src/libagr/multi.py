@@ -1,6 +1,5 @@
 import multiprocessing
 import threading
-import sys
 import time
 import traceback
 import collections
@@ -28,8 +27,8 @@ class Worker(multiprocessing.Process):
         except KeyboardInterrupt as err:
             retval = err
         except Exception as err:
-            log.logger.debug(f"Worker {self.w_id} error")
-            print(err, file=sys.stderr)
+            log.logger.error(f"Worker {self.w_id} error")
+            print(traceback.format_exc())
             traceback.print_tb(err.__traceback__)
             retval = err
         self.retval = retval

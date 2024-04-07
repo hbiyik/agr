@@ -5,12 +5,14 @@ Created on Jan 30, 2024
 '''
 import os
 import shutil
+import time
 
 from libagr import defs
 from libagr import cmd
 from libagr import config
 from libagr import log
 from libagr import cache
+from libagr import multi
 
 
 @cache.Cache.runonce
@@ -31,18 +33,45 @@ def originurl(repopath):
         return None
 
 
+def syncsub(subfolder, rpath):
+    spath = os.path.join(rpath, subfolder)
+    maxretry = 3
+    for retry in range(maxretry):
+        try:
+            cmd.stdout("git", "submodule",  "update", "--init", "--recursive", "--remote", "--force", subfolder,
+                       cwd=rpath, env=defs.ENV_GITNOSTDIN)
+            cmd.stdout("git", "clean", "-d", "-x", "-f", "-f", cwd=spath, env=defs.ENV_GITNOSTDIN)
+        except OSError as e:
+            if retry == maxretry:
+                raise(e)
+            log.logger.warning(f"Retrying {retry + 1} to sync {rpath}:{subfolder}")
+            time.sleep(0.1)
+
+
+def syncsubs(rpath):
+    submodules = cmd.stdout("git", "submodule", cwd=rpath, env=defs.ENV_GITNOSTDIN)
+    if submodules == "":
+        return
+    pman = multi.ProcMan(8)
+    for submodule in submodules.split("\n"):
+        info = submodule.split(" ")
+        if info[0].strip() == "":
+            info.pop(0)
+        subfolder = info[1]
+        pman.add(syncsub, subfolder, rpath)
+    pman.join()
+    error = None
+    for result, args, _kwargs in pman.returns.values():
+        if isinstance(result, Exception):
+            error = result
+            log.logger.error(f"Error synching repo {args[0]}:{args[1]}")
+    if error:
+        raise(error)
+
+
 @cache.Cache.runonce
 def syncremote(rname):
     log.logger.info(f"Looking up remote: {rname}:{config.CFG.getremote(rname)}")
-
-    def syncsubs(rpath):
-        cmd.stdout("git", "submodule",  "update", "--init", "--recursive", cwd=rpath, env=defs.ENV_GITNOSTDIN)
-        cmd.stdout("git", "submodule",  "foreach", "--recursive",
-                   "git", "fetch", cwd=rpath, env=defs.ENV_GITNOSTDIN)
-        cmd.stdout("git", "submodule",  "foreach", "--recursive",
-                   "git", "clean", "-d", "-x", "-f", "-f", cwd=rpath, env=defs.ENV_GITNOSTDIN)
-        cmd.stdout("git", "submodule", "update", "--recursive",
-                   "--remote", "--force", cwd=rpath, env=defs.ENV_GITNOSTDIN)
 
     remote, branch = config.CFG.getremote(rname)
     rpath = repopath(rname)
