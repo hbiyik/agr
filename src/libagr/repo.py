@@ -4,61 +4,16 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import os
-
-from libagr import cache
+from multiprocessing import pool
 from libagr import config
 from libagr import defs
 from libagr import git
 from libagr import log
-from libagr import cmd
 from libagr import pkgbuild
-from libagr import multi
-from libagr.pkgbuild import Dependency
+from libagr import cache
 
 
-cfg = config.Config()
-
-
-@cache.Cache.runonce
-def getinstalled():
-    installed = {}
-    index = 0
-    for line in cmd.stdout("pacman", "-Qi").split("\n"):
-        matches = line.split(" : ")
-        if matches and len(matches) == 2:
-            index += 1
-            if index == 1:
-                pkgname = matches[1].strip()
-            elif index == 2:
-                version = matches[1].strip()
-            elif index == 8:
-                provides = matches[1].strip()
-            elif index > 8:
-                continue
-        elif line == "":
-            index = 0
-            if not provides[0].isupper():
-                provideslist = [pkgbuild.Dependency(x) for x in provides.split(" ") if x != ""]
-            else:
-                provideslist = []
-            pkg = Dependency(f"{pkgname}={version}")
-            if pkgname not in [x.pkgname for x in provideslist]:
-                provideslist.append(pkg)
-            for provide in provideslist:
-                if provide.pkgname not in installed:
-                    installed[provide.pkgname] = pkg
-    return installed
-
-
-INSTALLED = getinstalled()
-
-
-def checkinstall(pkgname):
-    return INSTALLED.get(pkgname)
-
-
-def iterpkgs(rname):
-    git.syncremote(rname)
+def iterpkgpaths(rname):
     rpath = git.repopath(rname)
     for root, _subdirs, files in os.walk(rpath, followlinks=False):
         if defs.IGNORE_FLAG in files or defs.PKGBUILD not in files:
@@ -67,156 +22,256 @@ def iterpkgs(rname):
         yield pkgpath
 
 
-def clean_repos():
-    rnames = []
+def tempsync(pkgbuilds):
+    def _tempsync(pkgb):
+        pkgb.gensrcinfo()
+        pkgb.parse()
 
-    for currname in config.CFG.iterremotes():
-        rnames.append(currname)
-
-    for base in [defs.PKG_PATH, defs.REPO_PATH, defs.CACHE_PATH]:
-        for fname in os.listdir(base):
-            if fname not in rnames:
-                dpath = os.path.join(base, fname)
-                log.logger.info(f"Cleaning {dpath}")
-                cmd.stdout(f"rm", "-rf", dpath)
+    with pool.ThreadPool(defs.NUMCORES) as p:
+        p.map(_tempsync, pkgbuilds)
+    return pkgbuilds
 
 
-def clean_pkgs(pkgbuilds=None, rname=None):
-    rnames = []
-    if pkgbuilds is None:
-        pkgbuilds = []
-
-    for currname in config.CFG.iterremotes():
-        if rname is None or rname == currname:
-            rnames.append(currname)
-
-    for base in [defs.PKG_PATH, defs.CACHE_PATH]:
-        for rname in rnames:
-            rpath = os.path.join(base, rname)
-            if os.path.exists(rpath):
-                for fname in os.listdir(rpath):
-                    found = False
-                    for pkgb in pkgbuilds:
-                        if pkgb.remotename == rname and pkgb.reponame == fname:
-                            found = True
-                    if not found:
-                        dpath = os.path.join(rpath, fname)
-                        log.logger.info(f"Cleaning {dpath}")
-                        cmd.stdout(f"rm", "-rf", dpath)
+def iterpkgbuilds(repo=None, no_repo=None):
+    repo = repo or []
+    no_repo = no_repo or []
+    if not repo == defs.FILTER_NONE or not no_repo == defs.FILTER_ALL:
+        for remote in config.CFG.iterremotes():
+            if repo and repo != defs.FILTER_ALL and remote not in repo:
+                continue
+            elif no_repo and no_repo != defs.FILTER_NONE and remote in no_repo:
+                continue
+            for pkgpath in iterpkgpaths(remote):
+                yield remote, pkgpath
 
 
 @cache.Cache.runonce
-def allpkgbuilds(rname=None):
-    pman = multi.ProcMan(numworkers=defs.NUMCORES * 2, waittime=0)
-    for currname in cfg.iterremotes():
-        if rname is not None and currname != rname:
-            continue
-        for pkgpath in iterpkgs(currname):
-            pman.add(pkgbuild.getpkgbuild, currname, pkgpath)
-    pman.join()
+def allpkgbuilds(container, repo=None, no_repo=None):
     pkgbuilds = []
-    excs = []
-    for result, args, _kwargs in pman.returns.values():
-        if isinstance(result, Exception):
-            log.logger.warning(f"Error in {args[0]}:{args[1]} check {defs.PKGBUILD}")
-            excs.append(result)
-        else:
-            pkgbuilds.append(result)
-    clean_repos()
-    clean_pkgs(pkgbuilds, rname=rname)
-    return pkgbuilds + excs
+    for rname, pkgpath in iterpkgbuilds(repo, no_repo):
+        pkgb = pkgbuild.getpkgbuild(container, rname, pkgpath)
+        if pkgb and not pkgb.isbroken:
+            pkgbuilds.append(pkgb)
+    return pkgbuilds
 
 
-@cache.Cache.runonce
-def getpkgbuild(pkgname):
-    for pkgb in allpkgbuilds():
-        pkgrealname = pkgb.pkgrealname(pkgname)
-        if pkgrealname:
-            return pkgb, pkgrealname
-    return None, None
+def getpackages(container, pkgnames, repo=None, no_repo=None):
+    result = []
+    for pkgb in allpkgbuilds(container, repo, no_repo):
+        if pkgnames == defs.FILTER_NONE:
+            continue
+        elif pkgnames == defs.FILTER_ALL:
+            result.extend(pkgb.pkgname)
+            continue
+        for pkgname in pkgnames:
+            package = pkgb.getpackage(pkgname)
+            if package and package not in result:
+                package = pkgb.getpackage(pkgname)
+                result.append(package)
+    return result
 
 
-@cache.Cache.runonce
-def getdeps(*pkgnames, make=False, excludes=None):
+def select_alts(container, package, repo=None, no_repo=None, agrfirst=False, noconfirm=False, pacman=True):
+    # search in agr
+    found_agr_deps = []
+
+    # search in pacman
+    found_sys_deps = []
+
+    # total_alts = found_agr_deps + found_sys_deps if agrfirst else found_sys_deps + found_agr_deps
+
+    # check if the found alternative satisfies the package version dependency
+    # filtered_alts = []
+    for dest, source in [(found_agr_deps, getpackages(container, [package.pkgname], repo, no_repo)),
+                         (found_sys_deps, container.available.get(package, []))]:
+        for alt in source:
+            if alt.version is None:
+                pass
+            if package.compare and alt.compare and not alt.version.compare(package.compare, package.version):
+                log.logger.debug(f"{alt}{alt.version.compare}{alt.version.version} does not satify {package}{package.version.compare}{package.version.version}")
+                continue
+            dest.append(alt)
+
+    # select the alternative
+    if not len(found_agr_deps) and not len(found_sys_deps):
+        return  # no package available
+    elif len(found_agr_deps) == 1 and not len(found_sys_deps):
+        return found_agr_deps[0]
+    elif len(found_sys_deps) and not len(found_agr_deps):
+        return found_sys_deps[0]  # let the pacman/makepkg choose
+    elif noconfirm:
+        return found_agr_deps[0] if len(found_agr_deps) and (agrfirst or not len(found_sys_deps)) else found_sys_deps[0]
+    else:
+        msgs = []
+        if len(found_agr_deps):
+            msgs.append(f"AGR: ({len(found_agr_deps)})")
+        if len(found_sys_deps):
+            msgs.append(f"PACMAN({len(found_sys_deps)})")
+        log.logger.info(f"Found " + " ".join(msgs) + f" candidates for package '{package.pkgname}'")
+        log.logger.info("Please select which variant to use")
+        index = 0
+        pacmanopt = None
+        for alternative in found_agr_deps:
+            index += 1
+            log.logger.info(f"{index}) AGR: {alternative.pkgbuild.remotename}: {alternative.pkgname}")
+        if len(found_sys_deps):
+            index += 1
+            pacmanopt = index
+            log.logger.info(f"{index}) Let pacman choose from {found_sys_deps}")
+        defval = pacmanopt if pacmanopt is not None and not agrfirst else 0
+        offset = defval
+        while True:
+            offset = input(f"Enter a number in between 1-{index}, (Default: {defval}): ")
+            if offset.isdigit() and int(offset) > 0 and int(offset) <= index:
+                offset = int(offset) - 1
+                break
+            elif offset.strip() == "":
+                offset = defval
+                break
+        return found_agr_deps[offset] if offset < len(found_agr_deps) else found_sys_deps[0]
+
+
+def getdeps(container, packages, no_packages=None, repo=None, no_repo=None, agrfirst=False, noconfirm=False, make=False, excludes=None, alternatives=None):
+    no_packages = no_packages or []
+    excludes = excludes or []
+    if alternatives is None:
+        alternatives = {}
     deps = []
-    if excludes is None:
-        excludes = []
 
-    for pkgname in pkgnames:
-        pkgb, pkgrealname = getpkgbuild(pkgname)
-        if pkgb:
-            if pkgrealname not in excludes:
-                excludes.append(pkgrealname)
-            for dep in pkgb.makedepends if make else pkgb.depends.get(pkgrealname, []):
-                dep_pkgb, _dep_pkgrealname = getpkgbuild(dep.pkgname)
-                if dep_pkgb and dep.pkgname not in excludes:
-                    excludes.append(dep.pkgname)
-                    if dep.pkgname not in [x.pkgname for x in deps]:
-                        deps.append(dep)
+    for package in packages:
+        if package in no_packages:
+            continue
+        if package.pkgbuild:
+            for dep in package.pkgbuild.makedepends if make else package.pkgbuild.depends.get(package, []):
+                if dep in no_packages:
+                    continue
+                if dep in alternatives:
+                    alternative = alternatives[dep]
+                else:
+                    alternative = select_alts(container, dep, repo, no_repo, agrfirst, noconfirm, False)
+                    if alternative:
+                        alternatives[dep] = alternative
+                if not alternative or alternative.pkgbuild is None:
+                    # pacman package, dead code?
+                    continue
+                if alternative not in excludes:
+                    excludes.append(alternative)
+                    if alternative not in deps:
+                        deps.append(alternative)
     if deps:
-        subdeps = getdeps(*[x.pkgname for x in deps], make=make, excludes=excludes)
+        subdeps = getdeps(container, deps, no_packages, repo, no_repo, agrfirst, noconfirm, make, excludes, alternatives)
         if subdeps:
             deps.extend(subdeps)
+    deps.reverse()
     return deps
 
 
-def installdlagents(pkgb, **kwargs):
-    dlagents = pkgb.dlagents()
-    agr_installs, sys_installs = needsinstall(*dlagents)
-    if sys_installs:
-        raise Exception(f"You need to install {' '.join(sys_installs)} dlagents to continue")
-    if agr_installs and not installpkgs(*agr_installs, **kwargs):
+def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, agrfirst=False, skippgpcheck=False,
+              skipchecksum=False, skipinteg=False, noconfirm=False, force=False, ignorearch=False):
+    packages_filtered = []
+
+    # don't rebuild packages if already exists unless forced
+    for package in packages:
+        git.syncremote(package.pkgbuild.remotename)
+        if package.pkgbuild:
+            artifact = package.pkgbuild.getartifact(package)
+            if artifact and not force:
+                log.logger.info(f"already built, {artifact}")
+                continue
+        packages_filtered.append(package)
+    # make depends
+    base_packages, dep_packages = resolvepkgs(container, packages_filtered, no_packages, repo, no_repo, agrfirst, noconfirm, True)
+    # depends
+    bases, deps = resolvepkgs(container, packages_filtered, no_packages, repo, no_repo, agrfirst, noconfirm, False)
+    for base in bases:
+        if base not in base_packages:
+            base_packages.append(base)
+    for dep in deps:
+        if dep not in dep_packages:
+            dep_packages.append(dep)
+
+    agr_installs, _sys_installs = needsinstall(container, dep_packages, repo=repo, no_repo=no_repo, agrfirst=agrfirst, noconfirm=noconfirm)
+    if agr_installs:
+        log.logger.info(f"Installing {agr_installs}")
+    if not installpkgs(container, agr_installs, skippgpcheck, skipchecksum, skipinteg, noconfirm, False, ignorearch):
         return False
+    for base_package in base_packages:
+        if base_package.pkgbuild.build(force=force, skippgpcheck=skippgpcheck, skipinteg=skipinteg,
+                                       skipchecksum=skipchecksum, noconfirm=noconfirm, ignorearch=ignorearch) is False:
+            log.logger.error(f"Error building {base_package}")
+            return False
+    return packages
+
+
+def installpkgs(container, packages, skippgpcheck=False, skipchecksum=False, skipinteg=False,
+                noconfirm=False, force=False, ignorearch=False, immutable=True):
+    for package in packages:
+        git.syncremote(package.pkgbuild.remotename)
+        if package.pkgbuild.build(force=force, skippgpcheck=skippgpcheck, skipinteg=skipinteg,
+                                  skipchecksum=skipchecksum, noconfirm=noconfirm, ignorearch=ignorearch) is False:
+            log.logger.error(f"Error building {package}")
+            return False
+        artifact = package.pkgbuild.getartifact(package)
+        pacmancmd = ["sudo", "pacman", "-U", artifact]
+        kwargs = {}
+        if noconfirm:
+            pacmancmd.append("--noconfirm")
+        if container.name != "native":
+            kwargs["immutable"] = immutable
+        if not container.run_interactive(*pacmancmd, **kwargs):
+            log.logger.error(f"Error installing {artifact}")
+            return False
     return True
 
 
-def installpkgs(*packages, **kwargs):
-    report = []
-    if not packages:
-        return report
-    installs = []
-    for pkgname in packages:
-        pkgb, pkgrealname = getpkgbuild(pkgname)
-        if not pkgb:
-            log.logger.error(f"Can not find package {pkgname}")
-            return report
-        if pkgrealname not in installs:
-            installs.append(pkgrealname)
-    deps = list(getdeps(*packages)) + list(getdeps(*packages, make=True))
-    deps.reverse()
-    agr_installs, _sys_installs = needsinstall(*deps)
-    installs = agr_installs + installs
-    log.logger.info(f"Installing {' '.join(installs)}")
-    for install in installs:
-        ins_pkgb, ins_pkgrealname = getpkgbuild(install)
-        if not ins_pkgb.install(ins_pkgrealname, **kwargs):
-            log.logger.error(f"Error installing {ins_pkgrealname}:{ins_pkgb.version.version}")
-            return report
-        else:
-            report.append(f"Installed {ins_pkgrealname}:{ins_pkgb.version.version}")
-    return report
-
-
-def needsinstall(*packages):
+def needsinstall(container, packages, repo=None, no_repo=None, agrfirst=None, noconfirm=None):
     agr_installs = []
     sys_installs = []
     for package in packages:
-        syspkg = checkinstall(package.pkgname)
-        if syspkg and ((package.compare and syspkg.version.compare(package.compare, package.version)) or package.compare is None):
+        # check if already installed
+        if package.isinstalled(container, True):
             continue
-        pkgb, pkgrealname = getpkgbuild(package.pkgname)
-        if pkgb:
-            if pkgb.isdynamic and pkgb.islocal:
-                # sync to local and make srcinfo on local
-                if installdlagents(pkgb):
-                    pkgb = pkgb.sync()
-                else:
+        # select install candidates
+        if not package.pkgbuild:
+            package = select_alts(container, package, repo, no_repo, agrfirst, noconfirm)
+        if package:
+            pkgb = package.pkgbuild
+            if pkgbuild:
+                if package.compare and not pkgb.version.compare(package.compare, package.version):
+                    log.logger.error(f"Can not find package {package} with version{package.compare}{package.version}")
                     return
-            if package.compare and not pkgb.version.compare(package.compare, package.version):
-                log.logger.error(f"Can not find package {package.pkgname} with version{package.compare}{pkgb.version}")
-                return
-            if pkgrealname not in agr_installs:
-                agr_installs.append(pkgrealname)
-        elif not syspkg:
-            sys_installs.append(package.pkgname)
+                if package not in agr_installs:
+                    agr_installs.append(package)
+            elif package not in sys_installs:
+                sys_installs.append(package)
     return agr_installs, sys_installs
+
+
+def filterpkgs(container, pkg=None, repo=None, no_pkg=None, no_repo=None, agr=False, noconfirm=False):
+    packages = getpackages(container, pkg or defs.FILTER_ALL, repo or defs.FILTER_ALL, no_repo=no_repo or defs.FILTER_NONE)
+    no_packages = getpackages(container, no_pkg or defs.FILTER_NONE, repo or defs.FILTER_ALL, no_repo=no_repo or defs.FILTER_NONE)
+    if packages or no_packages or repo or no_repo:
+        bases, deps = resolvepkgs(container, packages, no_packages, repo, no_repo, agr, noconfirm, True)
+        pkgbs = [x.pkgbuild for x in set(bases + deps) if x.pkgbuild]
+        pkgbs = set(pkgbs)
+    else:
+        pkgbs = allpkgbuilds(container)
+    return pkgbs, packages, no_packages
+
+
+def resolvepkgs(container, packages, no_packages=None, repo=None, no_repo=None, agrfirst=False, noconfirm=False, make=False):
+    # get all packages in allowed repos with all its dependencies
+    deps = []
+    bases = []
+    alternatives = {}
+    for package in packages:
+        pkgnames = []
+        for base in package.pkgbuild.pkgname:
+            if base not in bases and base not in no_packages:
+                pkgnames.append(base)
+        bases.extend(pkgnames)
+        for pkgdep in getdeps(container, pkgnames, no_packages, repo, no_repo, agrfirst, noconfirm, make, alternatives=alternatives):
+            if pkgdep not in deps:
+                deps.append(pkgdep)
+
+    return bases, deps

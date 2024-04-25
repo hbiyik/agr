@@ -62,7 +62,9 @@ class Report:
         self.buffer = []
         self.startime = time.time()
 
-    def log(self, msg):
+    def log(self, msg, info=False):
+        if info:
+            logger.info(msg)
         self.buffer.append(msg)
 
     def __enter__(self):

@@ -9,22 +9,20 @@ class Cache:
     cache = {}
 
     @staticmethod
-    def item(*args, **kwargs):
+    def item(*args):
         keys = [str(x) for x in args]
-        for k in sorted(kwargs):
-            keys.append(f"{k}={kwargs[k]}")
         return "-".join(keys)
 
     @staticmethod
-    def has(key, *args, **kwargs):
-        item = Cache.item(*args, **kwargs)
+    def has(key, *args):
+        item = Cache.item(*args)
         if key in Cache.cache and item in Cache.cache[key]:
             return Cache.cache[key][item]
         return False, None
 
     @staticmethod
-    def make(key, retval, *args, **kwargs):
-        item = Cache.item(*args, **kwargs)
+    def make(key, retval, *args):
+        item = Cache.item(*args)
         if key not in Cache.cache:
             Cache.cache[key] = {}
         Cache.cache[key][item] = True, retval
@@ -32,10 +30,10 @@ class Cache:
     @staticmethod
     def runonce(func):
         def decorated(*args, **kwargs):
-            cachekey = func.__name__
-            hascache, retval = Cache.has(cachekey, *args, **kwargs)
+            cachekey = func.__qualname__
+            hascache, retval = Cache.has(cachekey, *args)
             if not hascache:
                 retval = func(*args, **kwargs)
-                Cache.make(cachekey, retval, *args, **kwargs)
+                Cache.make(cachekey, retval, *args)
             return retval
         return decorated
