@@ -103,5 +103,4 @@ def syncworking(rname, pkgfullpath, workpath):
 def getcommit(root, path=""):
     if path == ".":
         path = ""
-    head = f"HEAD:{path}"
-    return cmd.stdout("git", "rev-parse", head, cwd=root)
+    return cmd.stdout("git", "rev-parse", "HEAD", cwd=os.path.join(root, path))
