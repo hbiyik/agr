@@ -77,8 +77,9 @@ class Native:
         update_p = cmd.add_parser(defs.CMD_UPDATE, help="Update packages")
         build_p = cmd.add_parser(defs.CMD_BUILD, help="Build packages")
 
-        build_p.add_argument("-f", "--force", required=False, action="store_true",
-                             help=f"Force rebuild the package")
+        for p in [build_p, update_p]:
+            p.add_argument("-f", "--force", required=False, action="store_true",
+                           help=f"Force rebuild the package")
 
         build_p.add_argument('pkgname', nargs='+', help=f"list of packages to build")
 
@@ -158,7 +159,7 @@ class Native:
 
     def cmd_update(self, report, pkg=None, repo=None, no_pkg=None, no_repo=None, agrfirst=False,
                    skipinteg=False, skipchecksum=False, skippgpcheck=False,
-                   noconfirm=False, ignorearch=False, agr=False):
+                   noconfirm=False, ignorearch=False, agr=False, force=False):
         if agr:
             retval = agrcmd.run_interactive("python", "-m", "pip", "install", "https://github.com/hbiyik/agr/archive/master.zip",
                                             "--break-system-packages", "--force-reinstall")
@@ -176,7 +177,7 @@ class Native:
                         report.log(f"Update: {package.pkgname} {needsupdate}->{package.version}", True)
                         updates.append(package)
 
-        packages = agrrepo.buildpkgs(self, updates, no_packages, repo, no_repo, agrfirst, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch=ignorearch)
+        packages = agrrepo.buildpkgs(self, updates, no_packages, repo, no_repo, agrfirst, skippgpcheck, skipchecksum, skipinteg, noconfirm, force, ignorearch)
         if self.name == "native":
             return agrrepo.installpkgs(self, packages, skippgpcheck, skipchecksum, skipinteg, noconfirm, False, ignorearch)
         else:
