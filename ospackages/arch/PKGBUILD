@@ -1,0 +1,31 @@
+# Maintainer: Mahmut Dikcizgi <boogiepop a~t gmx com>
+
+_name=agr
+pkgname="${_name}-git"
+pkgver=0.2.1.22
+pkgrel=1
+pkgdesc='Archlinux Git Repositories'
+arch=('any')
+url="https://github.com/hbiyik/${_name}"
+depends=('git' 'systemd' 'arch-install-scripts' 'qemu-user-static' 'qemu-user-static-binfmt' 'tar')
+makedepends=('python-setuptools' 'python-build' 'python-installer' 'python-wheel' 'git')
+source=("${pkgname}::git+${url}")
+sha256sums=('SKIP')
+
+pkgver(){
+  cd "$pkgname"
+  _rev=$(git rev-list --count HEAD)
+  cd "src/lib$_name"
+  _ver=$(python -c "from defs import VERSION ; print(VERSION)")
+  printf "${_ver}.${_rev}"
+}
+
+build() {
+  cd "$pkgname"
+  python -m build --wheel --no-isolation
+}
+
+package() {
+  cd "$pkgname"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+}

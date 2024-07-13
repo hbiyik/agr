@@ -3,3 +3,6 @@ __pycache__
 /build
 *.pyc
 *.pyo
+/ospackages/arch/src
+/ospackages/arch/pkg
+/ospackages/arch/agr*
