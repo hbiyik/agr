@@ -79,11 +79,14 @@ def clean_caches():
                 basepath = os.path.join(defs.BASE_PATH, root, remote)
                 for cachefile in iter_path(basepath):
                     fnames = cachefile.split(".")
-                    if len(fnames) == 2 and fnames[0] in pkgs and "." + fnames[1] in [defs.PKGHASH, defs.SRCINFO]:
-                        continue
-                    else:
-                        path = os.path.join(basepath, cachefile)
-                        agrcmd.run_interactive("sudo", "rm", "-rf", path)
+                    if fnames:
+                        fname = ".".join(fnames[:-1])
+                        ext = "." + fnames[-1]
+                        if fname in pkgs and ext in [defs.PKGHASH, defs.SRCINFO]:
+                            continue
+                    path = os.path.join(basepath, cachefile)
+                    logger.info(f"Cleaning {path}")
+                    agrcmd.run_interactive("rm", "-rf", path)
 
 
 def clean_remotes():
