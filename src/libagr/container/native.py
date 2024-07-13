@@ -105,7 +105,7 @@ class Native:
                            help="Do not verify checksums of the source files")
             p.add_argument("--noconfirm", required=False, action="store_true",
                            help="Do not ask for confirmation when resolving dependencies")
-            p.add_argument("--agr", required=False, action="store_true",
+            p.add_argument("--agrfirst", required=False, action="store_true",
                            help="Prefer the agr packages over pacman packages")
             p.add_argument("--repo", required=False, metavar="reponame1,reponame2,..", action=SplitArgs,
                            help="limit to the only list of comma seperated repos")
@@ -141,23 +141,23 @@ class Native:
                 # TODO: Print description
                 report.log(f"{rname}: {config.CFG.getremote(rname)}")
 
-    def cmd_build(self, report, pkgname=None, repo=None, no_repo=None, agr=False,
+    def cmd_build(self, report, pkgname=None, repo=None, no_repo=None, agrfirst=False,
                   skipinteg=False, skippgpcheck=False, skipchecksum=False,
                   noconfirm=False, ignorearch=False, force=False):
         self.update(noconfirm)
-        _, packages, no_packages = agrrepo.filterpkgs(self, pkgname, repo, defs.FILTER_NONE, no_repo, agr, noconfirm)
-        return agrrepo.buildpkgs(self, packages, no_packages, repo, no_repo, agr, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch=ignorearch, force=force)
+        _, packages, no_packages = agrrepo.filterpkgs(self, pkgname, repo, defs.FILTER_NONE, no_repo, agrfirst, noconfirm)
+        return agrrepo.buildpkgs(self, packages, no_packages, repo, no_repo, agrfirst, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch=ignorearch, force=force)
 
-    def cmd_install(self, report, pkgname=None, repo=None, no_repo=None, agr=False,
+    def cmd_install(self, report, pkgname=None, repo=None, no_repo=None, agrfirst=False,
                     skipinteg=False, skippgpcheck=False, skipchecksum=False,
                     noconfirm=False, ignorearch=False):
-        packages = self.cmd_build(report, pkgname, repo, no_repo, agr, skipinteg, skippgpcheck, skipchecksum, noconfirm, ignorearch)
+        packages = self.cmd_build(report, pkgname, repo, no_repo, agrfirst, skipinteg, skippgpcheck, skipchecksum, noconfirm, ignorearch)
         return agrrepo.installpkgs(self, packages, skippgpcheck, skipchecksum, skipinteg, noconfirm, False, ignorearch)
 
-    def cmd_update(self, report, pkg=None, repo=None, no_pkg=None, no_repo=None, agr=False,
+    def cmd_update(self, report, pkg=None, repo=None, no_pkg=None, no_repo=None, agrfirst=False,
                    skipinteg=False, skipchecksum=False, skippgpcheck=False,
                    noconfirm=False, ignorearch=False):
-        pkgbs, _, no_packages = agrrepo.filterpkgs(self, pkg, repo, no_pkg, no_repo, agr, noconfirm)
+        pkgbs, _, no_packages = agrrepo.filterpkgs(self, pkg, repo, no_pkg, no_repo, agrfirst, noconfirm)
 
         updates = []
         for pkgb in pkgbs:
@@ -168,13 +168,13 @@ class Native:
                         report.log(f"Update: {package.pkgname} {needsupdate}->{package.version}", True)
                         updates.append(package)
 
-        packages = agrrepo.buildpkgs(self, updates, no_packages, repo, no_repo, agr, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch=ignorearch)
+        packages = agrrepo.buildpkgs(self, updates, no_packages, repo, no_repo, agrfirst, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch=ignorearch)
         if self.name == "native":
             return agrrepo.installpkgs(self, packages, skippgpcheck, skipchecksum, skipinteg, noconfirm, False, ignorearch)
         else:
             return True
 
-    def cmd_sync(self, report, pkg=None, repo=None, no_pkg=None, no_repo=None, agr=False,
+    def cmd_sync(self, report, pkg=None, repo=None, no_pkg=None, no_repo=None, agrfirst=False,
                  skipinteg=False, skipchecksum=False, skippgpcheck=False,
                  noconfirm=False, ignorearch=False):
         clean.clean()
@@ -190,11 +190,11 @@ class Native:
         # this stage indirectly sycs static packages therefore cpu bound
         agrrepo.tempsync(agrrepo.allpkgbuilds(self))
 
-        pkgbs, _, _ = agrrepo.filterpkgs(self, pkg, repo, no_pkg, no_repo, agr, noconfirm)
+        pkgbs, _, _ = agrrepo.filterpkgs(self, pkg, repo, no_pkg, no_repo, agrfirst, noconfirm)
 
         dlagents = []
         for pkgb in pkgbs:
-            agr_installs, sys_installs = agrrepo.needsinstall(self, pkgb.dlagents(), repo, no_repo, agr, noconfirm)
+            agr_installs, sys_installs = agrrepo.needsinstall(self, pkgb.dlagents(), repo, no_repo, agrfirst, noconfirm)
             if sys_installs:
                 raise pkgbuild.PkgNotExists(f"You need to install {sys_installs} from pacman to continue")
             for dlagent in agr_installs:

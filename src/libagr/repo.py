@@ -247,11 +247,11 @@ def needsinstall(container, packages, repo=None, no_repo=None, agrfirst=None, no
     return agr_installs, sys_installs
 
 
-def filterpkgs(container, pkg=None, repo=None, no_pkg=None, no_repo=None, agr=False, noconfirm=False):
+def filterpkgs(container, pkg=None, repo=None, no_pkg=None, no_repo=None, agrfirst=False, noconfirm=False):
     packages = getpackages(container, pkg or defs.FILTER_ALL, repo or defs.FILTER_ALL, no_repo=no_repo or defs.FILTER_NONE)
     no_packages = getpackages(container, no_pkg or defs.FILTER_NONE, repo or defs.FILTER_ALL, no_repo=no_repo or defs.FILTER_NONE)
     if packages or no_packages or repo or no_repo:
-        bases, deps = resolvepkgs(container, packages, no_packages, repo, no_repo, agr, noconfirm, True)
+        bases, deps = resolvepkgs(container, packages, no_packages, repo, no_repo, agrfirst, noconfirm, True)
         pkgbs = [x.pkgbuild for x in set(bases + deps) if x.pkgbuild]
         pkgbs = set(pkgbs)
     else:
