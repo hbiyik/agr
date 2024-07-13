@@ -57,8 +57,7 @@ agr rem set boogie https://github.com/hbiyik/agrrepo.git
 verify the remote repo is added
 
 ```shell
->> agr rem list
-boogie https://github.com/hbiyik/agrrepo.git master
+agr rem list
 ```
 
 sync the packages in the repo
@@ -121,16 +120,16 @@ will output
 ```
 
 ### install a package from the remote repo
-to install `ffmpeg-rockchip-git` from the `boogie` repo
+to install `ffmpeg-mpp-git` from the `boogie` repo
 
 ```shell
-agr install ffmpeg-rockchip-git
+agr install ffmpeg-mpp-git
 ```
 
 to automatically say "yes" to each question asked
 
 ```shell
-agr install ffmpeg-rockchip-git --noconfirm
+agr install ffmpeg-mpp-git --noconfirm
 ```
 
 
