@@ -112,6 +112,8 @@ class Native:
             p.add_argument("--no-repo", required=False, metavar="reponame1,reponame2,..", action=SplitArgs,
                            help="ignore the comma seperated list of pkgs")
 
+        update_p.add_argument("--agr", required=False, action="store_true", help="update the agr tool itself")
+
         cont_p = cmd.add_parser(defs.CMD_CONT, help="list, set, get, create containers")
         cmd_cont = cont_p.add_subparsers(dest="cmd_cont", required=True)
         cmd_cont.add_parser(defs.CMD_CONT_LIST, help="List available containers")
@@ -156,7 +158,13 @@ class Native:
 
     def cmd_update(self, report, pkg=None, repo=None, no_pkg=None, no_repo=None, agrfirst=False,
                    skipinteg=False, skipchecksum=False, skippgpcheck=False,
-                   noconfirm=False, ignorearch=False):
+                   noconfirm=False, ignorearch=False, agr=False):
+        if agr:
+            retval = agrcmd.run_interactive("python", "-m", "pip", "install", "https://github.com/hbiyik/agr/archive/master.zip",
+                                            "--break-system-packages", "--force-reinstall")
+            agrcmd.run_interactive("python", "-m", "agr", "--version")
+            return retval
+
         pkgbs, _, no_packages = agrrepo.filterpkgs(self, pkg, repo, no_pkg, no_repo, agrfirst, noconfirm)
 
         updates = []
