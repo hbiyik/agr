@@ -193,11 +193,10 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
     agr_installs, _sys_installs = needsinstall(container, dep_packages, repo=repo, no_repo=no_repo, agrfirst=agrfirst, noconfirm=noconfirm)
     if agr_installs:
         log.logger.info(f"Installing {agr_installs}")
-    if not installpkgs(container, agr_installs, skippgpcheck, skipchecksum, skipinteg, noconfirm, False, ignorearch):
+    if not installpkgs(container, agr_installs, skippgpcheck, skipchecksum, skipinteg, noconfirm, force, ignorearch):
         return False
     for base_package in base_packages:
-        if base_package.pkgbuild.build(force=force, skippgpcheck=skippgpcheck, skipinteg=skipinteg,
-                                       skipchecksum=skipchecksum, noconfirm=noconfirm, ignorearch=ignorearch) is False:
+        if base_package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
             log.logger.error(f"Error building {base_package}")
             return False
     return packages
@@ -207,8 +206,7 @@ def installpkgs(container, packages, skippgpcheck=False, skipchecksum=False, ski
                 noconfirm=False, force=False, ignorearch=False, immutable=True):
     for package in packages:
         git.syncremote(package.pkgbuild.remotename)
-        if package.pkgbuild.build(force=force, skippgpcheck=skippgpcheck, skipinteg=skipinteg,
-                                  skipchecksum=skipchecksum, noconfirm=noconfirm, ignorearch=ignorearch) is False:
+        if package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
             log.logger.error(f"Error building {package}")
             return False
         artifact = package.pkgbuild.getartifact(package)
