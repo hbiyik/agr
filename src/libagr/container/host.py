@@ -263,7 +263,7 @@ class Host(native.Native):
         # create the container with pacstrap
         with open(self.pacstrapconf_path, "w") as f:
             f.write(self.pacmanconf(True))
-        packages = native.Native.packages  # + self.keyrings
+        packages = native.Native.packages + self.keyrings
         agrcmd.run_interactive("sudo", "pacstrap", "-C", self.pacstrapconf_path, self.rootfs_path, *packages)
 
         # create pacman.conf for container
