@@ -33,7 +33,7 @@ class Native:
     cont_arch = os.uname()[4]
     makepkgconf_path = "/etc/makepkg.conf"
     packages = ["sudo", "base-devel", "git"]
-    env = os.environ.copy()
+    env = defs.ENV.copy()
     installed = {}
 
     def __init__(self):

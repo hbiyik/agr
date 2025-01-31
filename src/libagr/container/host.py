@@ -14,8 +14,6 @@ from libagr import cmd as agrcmd
 from libagr import defs
 from libagr import log
 
-SKIPENV = ["LD_PRELOAD"]
-
 
 class Host(native.Native):
     cont_arch = defs.ARCH_HOST
@@ -92,10 +90,10 @@ class Host(native.Native):
                 splits = envline.split("=")
                 if len(splits) > 2:
                     splits = [splits[0], "=".join(splits[1:])]
-                if len(splits) == 2 and splits[0] not in SKIPENV:
+                if len(splits) == 2 and splits[0] not in defs.SKIPENV:
                     self._env[splits[0]] = splits[1]
             for k, v in native.Native.env.items():
-                if k not in self.env and k not in SKIPENV:
+                if k not in self.env:
                     self._env[k] = v
         return self._env.copy()
 
