@@ -249,9 +249,12 @@ def filterpkgs(container, pkg=None, repo=None, no_pkg=None, no_repo=None, agrfir
     packages = getpackages(container, pkg or defs.FILTER_ALL, repo or defs.FILTER_ALL, no_repo=no_repo or defs.FILTER_NONE)
     no_packages = getpackages(container, no_pkg or defs.FILTER_NONE, repo or defs.FILTER_ALL, no_repo=no_repo or defs.FILTER_NONE)
     if packages or no_packages or repo or no_repo:
-        bases, deps = resolvepkgs(container, packages, no_packages, repo, no_repo, agrfirst, noconfirm, True)
-        pkgbs = [x.pkgbuild for x in set(bases + deps) if x.pkgbuild]
-        pkgbs = set(pkgbs)
+        pkgbs = []
+        for make in [True, False]:
+            bases, deps = resolvepkgs(container, packages, no_packages, repo, no_repo, agrfirst, noconfirm, make)
+            for pkgb in set(bases + deps):
+                if pkgb.pkgbuild and pkgb.pkgbuild not in pkgbs:
+                    pkgbs.append(pkgb.pkgbuild)
     else:
         pkgbs = allpkgbuilds(container)
     return pkgbs, packages, no_packages
