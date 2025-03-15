@@ -7,8 +7,9 @@ pkgrel=1
 pkgdesc='Archlinux Git Repositories'
 arch=('any')
 url="https://github.com/hbiyik/${_name}"
-depends=('git' 'systemd' 'arch-install-scripts' 'qemu-user-static' 'qemu-user-static-binfmt' 'tar')
+depends=('git' 'systemd' 'arch-install-scripts' 'tar')
 makedepends=('python-setuptools' 'python-build' 'python-installer' 'python-wheel' 'git')
+optdepends=('qemu-user-static' 'qemu-user-static-binfmt')
 source=("${pkgname}::git+${url}")
 sha256sums=('SKIP')
 
