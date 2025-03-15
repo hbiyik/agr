@@ -1,0 +1,5 @@
+FROM menci/archlinuxarm:base-devel AS builder
+
+RUN pacman -Syu git --noconfirm
+RUN useradd -m user && echo "ALL ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN cd /home/user && sudo -u user git clone https://github.com/hbiyik/agr.git && cd agr/ospackages/arch && sudo -u user makepkg -si --noconfirm
