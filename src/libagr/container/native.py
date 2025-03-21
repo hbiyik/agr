@@ -313,19 +313,19 @@ class Native:
     def parsepacman(self, pacman, offset=0):
         installed = {}
         index = 0
+        provides = ""
         for line in pacman.split("\n"):
             matches = line.split(" : ")
-            if matches and len(matches) == 2:
+            if matches and len(matches) > 1:
                 index += 1
-                if index == 1 + offset:
-                    pkgname = matches[1].strip()
-                elif index == 2 + offset:
-                    vers = matches[1].strip()
-                elif index == 8 + offset:
-                    provides = matches[1].strip()
-                elif index > 8 + offset:
-                    continue
-            elif line == "":
+            if index == 1 + offset:
+                pkgname = matches[1].strip()
+            elif index == 2 + offset:
+                vers = matches[1].strip()
+            elif index == 8 + offset:
+                provides += " " + matches[-1].strip()
+
+            if line == "":
                 index = 0
                 if not provides[0].isupper():
                     provideslist = [pkgbuild.Package(x) for x in provides.split(" ") if x != ""]
@@ -339,6 +339,7 @@ class Native:
                         installed[provide] = [pkg]
                     if pkg not in installed[provide]:
                         installed[provide].append(pkg)
+                provides = ""
         return installed.copy()
 
     def run_interactive(self, *cmd, **kwargs):
