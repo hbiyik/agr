@@ -400,8 +400,11 @@ class Pkgbuild:
 
         artifact = f"{package.pkgname}-{self.version}-{arch}{self.container.pkgext}"
         artifact = os.path.join(self.distpath, artifact)
-        if not checkexists or os.path.exists(artifact):
-            return artifact
+        # some FS types dont support some chars, replace them with .
+        artifacts = [artifact, artifact.replace(":", ".")]
+        for artifact in artifacts:
+            if not checkexists or os.path.exists(artifact):
+                return artifact
 
     def install(self, *packages, noconfirm=False):
         installs = []
