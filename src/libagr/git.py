@@ -37,13 +37,13 @@ def syncsub(subfolder, rpath):
     maxretry = 3
     for retry in range(maxretry):
         try:
-            cmd.run_stdout("git", "submodule",  "update", "--init", "--recursive", "--remote", "--force",
-                              subfolder, cwd=rpath, env=defs.ENV_GIT)
-            cmd.run_stdout("git", "clean", "-d", "-x", "-f", "-f", cwd=spath, env=defs.ENV_GIT)
+            cmd.run_interactive("git", "submodule",  "update", "--init", "--recursive", "--remote", "--force",
+                                subfolder, cwd=rpath, env=defs.ENV_GIT)
+            cmd.run_interactive("git", "clean", "-d", "-x", "-f", "-f", cwd=spath, env=defs.ENV_GIT)
         except OSError as e:
             if retry == maxretry:
                 raise(e)
-            log.logger.warning(f"Retrying {retry + 1} to sync {rpath}: {subfolder}")
+            log.logger.info(f"Retrying {retry + 1} to sync {rpath}: {subfolder}")
             time.sleep(0.1)
 
 
