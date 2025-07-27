@@ -234,7 +234,7 @@ def needsinstall(container, packages, repo=None, no_repo=None, agrfirst=None, no
             package = select_alts(container, package, repo, no_repo, agrfirst, noconfirm)
         if package:
             pkgb = package.pkgbuild
-            if pkgbuild:
+            if pkgb:
                 if package.compare and not pkgb.version.compare(package.compare, package.version):
                     log.logger.error(f"Can not find package {package} with version{package.compare}{package.version}")
                     return
