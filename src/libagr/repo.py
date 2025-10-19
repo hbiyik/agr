@@ -161,8 +161,7 @@ def getdeps(container, packages, no_packages=None, repo=None, no_repo=None, agrf
     if deps:
         subdeps = getdeps(container, deps, no_packages, repo, no_repo, agrfirst, noconfirm, make, excludes, alternatives)
         if subdeps:
-            deps.extend(subdeps)
-    deps.reverse()
+            deps = subdeps + deps
     return deps
 
 
