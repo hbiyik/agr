@@ -4,6 +4,7 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import os
+import traceback
 from multiprocessing import pool
 from libagr import config
 from libagr import defs
@@ -25,7 +26,11 @@ def iterpkgpaths(rname):
 def tempsync(pkgbuilds):
     def _tempsync(pkgb):
         pkgb.gensrcinfo()
-        pkgb.parse()
+        try:
+            pkgb.parse()
+        except Exception:
+            log.logger.warning(f"Can not parse package: {pkgb}")
+            log.logger.debug(traceback.format_exc())
 
     with pool.ThreadPool(defs.NUMCORES) as p:
         p.map(_tempsync, pkgbuilds)
