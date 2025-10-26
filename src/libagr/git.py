@@ -37,9 +37,10 @@ def syncsub(subfolder, rpath):
     maxretry = 3
     for retry in range(maxretry):
         try:
-            cmd.run_interactive("git", "submodule",  "update", "--init", "--recursive", "--remote", "--force",
+            cmd.run_interactive("git", "submodule", "update", "--init", "--recursive", "--remote", "--force",
                                 subfolder, cwd=rpath, env=defs.ENV_GIT)
             cmd.run_interactive("git", "clean", "-d", "-x", "-f", "-f", cwd=spath, env=defs.ENV_GIT)
+            return
         except OSError as e:
             if retry == maxretry:
                 raise(e)
