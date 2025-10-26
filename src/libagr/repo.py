@@ -32,7 +32,7 @@ def tempsync(pkgbuilds):
             log.logger.warning(f"Can not parse package: {pkgb}")
             log.logger.debug(traceback.format_exc())
 
-    with pool.ThreadPool(defs.NUMCORES) as p:
+    with pool.ThreadPool(min(defs.NUMCORES, 8)) as p:
         p.map(_tempsync, pkgbuilds)
     return pkgbuilds
 
