@@ -12,6 +12,7 @@ from libagr import git
 from libagr import log
 from libagr import pkgbuild
 from libagr import cache
+from libagr import autorel
 
 
 def iterpkgpaths(rname):
@@ -109,10 +110,10 @@ def select_alts(container, package, repo=None, no_repo=None, agrfirst=False, noc
     else:
         msgs = []
         if len(found_agr_deps):
-            msgs.append(f"AGR: ({len(found_agr_deps)})")
+            msgs.append(f"{len(found_agr_deps)} AGR")
         if len(found_sys_deps):
-            msgs.append(f"PACMAN({len(found_sys_deps)})")
-        log.logger.info(f"Found " + " ".join(msgs) + f" candidates for package '{package.pkgname}'")
+            msgs.append(f"{len(found_sys_deps)} PACMAN")
+        log.logger.info(f"Found " + ",".join(msgs) + f" candidates for package '{package.pkgname}'")
         log.logger.info("Please select which variant to use")
         index = 0
         pacmanopt = None
@@ -172,34 +173,38 @@ def getdeps(container, packages, no_packages=None, repo=None, no_repo=None, agrf
 
 def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, agrfirst=False, skippgpcheck=False,
               skipchecksum=False, skipinteg=False, noconfirm=False, force=False, ignorearch=False):
-    packages_filtered = []
-
-    # don't rebuild packages if already exists unless forced
-    for package in packages:
-        git.syncremote(package.pkgbuild.remotename)
-        if package.pkgbuild:
-            artifact = package.pkgbuild.getartifact(package)
-            if artifact and not force:
-                log.logger.info(f"already built, {artifact}")
-                continue
-        packages_filtered.append(package)
-    # make depends
-    base_packages, dep_packages = resolvepkgs(container, packages_filtered, no_packages, repo, no_repo, agrfirst, noconfirm, True)
     # depends
-    bases, deps = resolvepkgs(container, packages_filtered, no_packages, repo, no_repo, agrfirst, noconfirm, False)
-    for base in bases:
-        if base not in base_packages:
-            base_packages.append(base)
-    for dep in deps:
-        if dep not in dep_packages:
-            dep_packages.append(dep)
+    bases, deps = resolvepkgs(container, packages, no_packages, repo, no_repo, agrfirst, noconfirm, False)
+    # make_depends
+    _, make_deps = resolvepkgs(container, packages, no_packages, repo, no_repo, agrfirst, noconfirm, True)
+    for dep in make_deps:
+        if dep not in deps and dep not in bases:
+            deps.append(dep)
 
-    agr_installs, _sys_installs = needsinstall(container, dep_packages, repo=repo, no_repo=no_repo, agrfirst=agrfirst, noconfirm=noconfirm)
+    agr_installs, _sys_installs = needsinstall(container, deps, repo=repo, no_repo=no_repo, agrfirst=agrfirst, noconfirm=noconfirm)
     if agr_installs:
-        log.logger.info(f"Installing {agr_installs}")
+        log.logger.info(f"Installing dependecies from agr: {agr_installs}")
     if not installpkgs(container, agr_installs, skippgpcheck, skipchecksum, skipinteg, noconfirm, force, ignorearch):
         return False
-    for base_package in base_packages:
+    for base_package in bases:
+        git.syncremote(base_package.pkgbuild.remotename)
+        if not base_package.pkgbuild:
+            continue
+        artifact = base_package.pkgbuild.latestbuild(base_package)
+        if artifact and not force:
+            if not container.name == "native":
+                log.logger.info(f"already built, {artifact}")
+                continue
+            try:
+                autorel.syncsysdeps(container, base_package, noconfirm, agr_installs)
+            except Exception as e:
+                log.logger.warning("Can not analyse %s, assuming it is already built without any issue, Error:%s",
+                                   base_package, e)
+                continue
+            if not autorel.checkpkg(artifact) == autorel.DEP_OLD:
+                log.logger.info(f"already built, {artifact}")
+                continue
+            autorel.bumprel(base_package.pkgbuild, artifact)
         if base_package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
             log.logger.error(f"Error building {base_package}")
             return False
@@ -276,7 +281,7 @@ def resolvepkgs(container, packages, no_packages=None, repo=None, no_repo=None, 
                 pkgnames.append(base)
         bases.extend(pkgnames)
         for pkgdep in getdeps(container, pkgnames, no_packages, repo, no_repo, agrfirst, noconfirm, make, alternatives=alternatives):
-            if pkgdep not in deps:
+            if pkgdep not in deps and pkgdep not in bases:
                 deps.append(pkgdep)
 
     return bases, deps

@@ -4,6 +4,7 @@ Created on Jan 30, 2024
 @author: boogie
 '''
 import os
+import re
 import time
 import hashlib
 
@@ -58,6 +59,20 @@ class Package:
                 self.version = version.Version(dependsplit[1].strip())
                 self.compare = delim
                 break
+
+    @staticmethod
+    def fnameparse(fname):
+        fname = os.path.basename(fname)
+        parts = fname.split("-")
+        if len(parts) < 4:
+            return None, None, None
+        pkgrel = parts[-2]
+        if not pkgrel.isdigit():
+            return None, None, None
+        pkgrel = int(pkgrel)
+        pkgver = parts[-3].replace(":", ".")
+        pkgname = "-".join(parts[:-3])
+        return pkgname, pkgver, pkgrel
 
     def __eq__(self, other):
         if isinstance(other, str):
@@ -330,13 +345,10 @@ class Pkgbuild:
                         return pkg
 
     def build(self, force=False, skippgpcheck=False, skipchecksum=False, skipinteg=False, noconfirm=False, ignorearch=False):
-        existing_artifacts = []
         hasall = True
         self._pkgsrc = None
         for artifact in self.artifacts:
-            if os.path.exists(os.path.join(self.distpath, artifact)):
-                existing_artifacts.append(artifact)
-            else:
+            if not os.path.exists(os.path.join(self.distpath, artifact)):
                 hasall = False
 
         if force and not self.forcebuilt:
@@ -352,8 +364,12 @@ class Pkgbuild:
             return
         else:
             # remove existing artifacts since all artifacts will be rebuilt
-            for artifact in existing_artifacts:
-                cmd.run_stdout("rm", artifact)
+            for fname in os.listdir(self.distpath):
+                pkgname, _, _ = Package.fnameparse(fname)
+                if not pkgname:
+                    continue
+                if pkgname in self.pkgname:
+                    cmd.run_stdout("rm", os.path.join(self.distpath, fname))
 
         # parse makepkg flags
         args = []
@@ -393,6 +409,21 @@ class Pkgbuild:
                             elif newvers.compare(defs.COMP_G, latest):
                                 latest = newvers
         return latest
+
+    def latestbuild(self, package):
+        artifact_ver = None
+        artifact = None
+        for fname in os.listdir(self.distpath):
+            pkgname, pkgver, pkgrel = Package.fnameparse(fname)
+            if not pkgname == package.pkgname:
+                continue
+            fname = os.path.join(self.distpath, fname)
+            ver = version.Version(f"{pkgver}.{pkgrel}")
+            if not artifact_ver or ver.compare(defs.COMP_GE, artifact_ver):
+                artifact = fname
+                artifact_ver = ver
+
+        return artifact
 
     def getartifact(self, package, checkexists=True):
         if package.pkgname not in self.pkgname:
