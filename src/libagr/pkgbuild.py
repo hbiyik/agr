@@ -75,9 +75,14 @@ class Package:
     def isinstalled(self, container, strict=False):
         syspkg = None
         for _syspkg in container.installed.get(self, []):
-            if _syspkg.pkgname == self.pkgname and (not strict or not self.compare or _syspkg.version.compare(self.compare, self.version)):
-                syspkg = _syspkg
-                break
+            if strict and not self.pkgname == _syspkg.pkgname:
+                continue
+            if strict and not self.compare:
+                continue
+            if strict and not _syspkg.version.compare(self.compare, self.version):
+                continue
+            syspkg = _syspkg
+            break
         return syspkg
 
     def needsupdate(self, container):
