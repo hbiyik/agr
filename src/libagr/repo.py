@@ -190,12 +190,13 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
         git.syncremote(base_package.pkgbuild.remotename)
         if not base_package.pkgbuild:
             continue
-        artifact = base_package.pkgbuild.latestbuild(base_package)
+        artifact = base_package.pkgbuild.getartifact(base_package)
         if artifact and not force:
             if not container.name == "native":
                 log.logger.info(f"already built, {artifact}")
                 continue
             try:
+                artifact = base_package.pkgbuild.latestbuild(base_package)
                 autorel.syncsysdeps(container, base_package, noconfirm, agr_installs)
             except Exception as e:
                 log.logger.warning("Can not analyse %s, assuming it is already built without any issue, Error:%s",
