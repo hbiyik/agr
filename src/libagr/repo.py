@@ -181,6 +181,13 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
         if dep not in deps and dep not in bases:
             deps.append(dep)
 
+    # if dep is also in base packages, first build it and then install it
+    basedeps = []
+    for base in bases:
+        if base in deps:
+            deps.remove(base)
+            basedeps.append(base)
+
     agr_installs, _sys_installs = needsinstall(container, deps, repo=repo, no_repo=no_repo, agrfirst=agrfirst, noconfirm=noconfirm)
     if agr_installs:
         log.logger.info(f"Installing dependecies from agr: {agr_installs}")
@@ -192,23 +199,25 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
             continue
         artifact = base_package.pkgbuild.getartifact(base_package)
         if artifact and not force:
-            if not container.name == "native":
-                log.logger.info(f"already built, {artifact}")
-                continue
-            try:
-                artifact = base_package.pkgbuild.latestbuild(base_package)
-                autorel.syncsysdeps(container, base_package, noconfirm, agr_installs)
-            except Exception as e:
-                log.logger.warning("Can not analyse %s, assuming it is already built without any issue, Error:%s",
-                                   base_package, e)
-                continue
-            if not autorel.checkpkg(artifact) == autorel.DEP_OLD:
-                log.logger.info(f"already built, {artifact}")
-                continue
-            autorel.bumprel(base_package.pkgbuild, artifact)
-        if base_package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
+            if container.name == "native":
+                try:
+                    artifact = base_package.pkgbuild.latestbuild(base_package)
+                    autorel.syncsysdeps(container, base_package, noconfirm, agr_installs)
+                except Exception as e:
+                    log.logger.warning("Can not analyse %s, assuming it is already built without any issue, Error:%s",
+                                       base_package, e)
+                else:
+                    if autorel.checkpkg(artifact) == autorel.DEP_OLD:
+                        autorel.bumprel(base_package.pkgbuild, artifact)
+            log.logger.info(f"already built, {artifact}")
+        elif base_package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
             log.logger.error(f"Error building {base_package}")
             return False
+        # install previously built package if it was in deps list
+        if base_package in basedeps and not base_package.isinstalled(container):
+            if not installpkgs(container, [base_package], skippgpcheck, skipchecksum, skipinteg, noconfirm, force, ignorearch):
+                return False
+            agr_installs.append(base_package)
     return packages
 
 
@@ -282,7 +291,11 @@ def resolvepkgs(container, packages, no_packages=None, repo=None, no_repo=None, 
                 pkgnames.append(base)
         bases.extend(pkgnames)
         for pkgdep in getdeps(container, pkgnames, no_packages, repo, no_repo, agrfirst, noconfirm, make, alternatives=alternatives):
-            if pkgdep not in deps and pkgdep not in bases:
+            if pkgdep not in deps:
                 deps.append(pkgdep)
+
+    for dep in reversed(deps):
+        if dep in bases:
+            bases.insert(0, bases.pop(bases.index(dep)))
 
     return bases, deps
