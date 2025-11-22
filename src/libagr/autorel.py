@@ -68,8 +68,9 @@ def checkpkg(pkgpath):
 
 
 def syncsysdeps(container, package, noconfirm=False, agrinstalls=None):
-    agrinstalls = agrinstalls or []
-    agrinstalls = [x.pkgname for x in agrinstalls]
+    agrpkgs = []
+    for agrpkg in agrinstalls or []:
+        agrpkgs.extend(agrpkg.pkgbuild.pkgnames)
     sysinstalls = []
     packages = package.pkgbuild.provides.get(package, [])
     if package not in packages:
@@ -78,7 +79,7 @@ def syncsysdeps(container, package, noconfirm=False, agrinstalls=None):
         if not package.pkgbuild:
             continue
         for dep in package.pkgbuild.depends.get(package, []):
-            if dep in agrinstalls:
+            if dep in agrpkgs:
                 continue
             if dep not in sysinstalls and not dep.isinstalled(container):
                 sysinstalls.append(dep.pkgname)
