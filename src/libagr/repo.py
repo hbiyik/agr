@@ -224,6 +224,8 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
 def installpkgs(container, packages, skippgpcheck=False, skipchecksum=False, skipinteg=False,
                 noconfirm=False, force=False, ignorearch=False, immutable=True):
     for package in packages:
+        if not force and package.isinstalled(container):
+            continue
         git.syncremote(package.pkgbuild.remotename)
         if package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
             log.logger.error(f"Error building {package}")
