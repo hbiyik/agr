@@ -15,12 +15,10 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import os
-import re
 
 from libagr import elf
 from libagr import log
 from libagr import cmd
-from libagr import pkgbuild
 
 DEP_OK = 0
 DEP_NEW = -1
@@ -93,24 +91,6 @@ def syncsysdeps(container, package, noconfirm=False, agrinstalls=None):
         return
 
 
-def bumprel(pkgb, artifact):
-    pkgrel = int(pkgb.pkgrel) if pkgb.pkgrel else 2
-    _pkgname, _pkgver, a_pkgrel = pkgbuild.Package.fnameparse(artifact)
-    pkgrel = max(pkgrel, a_pkgrel) + 1
-    with open(os.path.join(pkgb.pkgfullpath, "PKGBUILD"), "r") as f:
-        pkgsource = f.read()
-    new_pkgsource = re.sub(r"\npkgrel\=.+?", f"\npkgrel={pkgrel}", pkgsource)
-    if new_pkgsource == pkgsource:
-        new_pkgsource += f"\npkgrel={pkgrel}"
-    with open(os.path.join(pkgb.pkgfullpath, "PKGBUILD"), "w") as f:
-        f.write(new_pkgsource)
-    log.logger.info("pkgrel is bumped form %s to %s for %s",
-                    pkgb.pkgrel,
-                    pkgrel,
-                    pkgb)
-    pkgb.pkgrel = str(pkgrel)
-
-
 def suggestdeps(pkgpath):
     # just all packages not top-levels
     packages = []
@@ -126,12 +106,3 @@ def suggestdeps(pkgpath):
                 packages.append(package)
             break
     return packages
-
-
-if __name__ == "__main__":
-    import sys
-    import logging
-    log.setlevel(logging.DEBUG)
-    print(checkpkg(sys.argv[1]))
-    print(suggestdeps(sys.argv[1]))
-

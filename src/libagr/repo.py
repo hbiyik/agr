@@ -199,6 +199,7 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
             continue
         artifact = base_package.pkgbuild.getartifact(base_package)
         if artifact and not force:
+            relstate = autorel.DEP_OK
             if container.name == "native":
                 try:
                     artifact = base_package.pkgbuild.latestbuild(base_package)
@@ -207,10 +208,14 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
                     log.logger.warning("Can not analyse %s, assuming it is already built without any issue, Error:%s",
                                        base_package, e)
                 else:
-                    if autorel.checkpkg(artifact) == autorel.DEP_OLD:
-                        autorel.bumprel(base_package.pkgbuild, artifact)
-            log.logger.info(f"already built, {artifact}")
-        elif base_package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
+                    relstate = autorel.checkpkg(artifact)
+            # release is built and usable
+            if not relstate == autorel.DEP_OLD:
+                log.logger.info(f"already built, {artifact}")
+                continue
+            # bump pkgrel since deps has newer verions and pkg needs rebuilding
+            base_package.pkgbuild.pkgrel += 1
+        if base_package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
             log.logger.error(f"Error building {base_package}")
             return False
         # install previously built package if it was in deps list

@@ -131,7 +131,7 @@ class Pkgbuild:
         self.cachepath = os.path.join(defs.CACHE_PATH, self.remotename)
         self.srcinfo_path = os.path.join(self.cachepath, f"{self.refname}{defs.SRCINFO}")
         self.epoch = None
-        self.pkgrel = None
+        self._pkgrel = 1
         self.pkgver = None
         self.pkgbase = None
         self.pkgdesc = None
@@ -152,6 +152,26 @@ class Pkgbuild:
             os.makedirs(p, exist_ok=True)
         self.parse()
 
+    @property
+    def pkgrel(self):
+        return self._pkgrel
+
+    @pkgrel.setter
+    def pkgrel(self, value):
+        with open(os.path.join(self.pkgfullpath, "PKGBUILD"), "r") as f:
+            pkgsource = f.read()
+        new_pkgsource = re.sub(r"\npkgrel\=.+?", f"\npkgrel={value}", pkgsource)
+        if new_pkgsource == pkgsource:
+            new_pkgsource += f"\npkgrel={value}"
+        with open(os.path.join(self.pkgfullpath, "PKGBUILD"), "w") as f:
+            f.write(new_pkgsource)
+        log.logger.info("pkgrel is bumped form %s to %s for %s",
+                        self._pkgrel,
+                        value,
+                        self)
+        self.gensrcinfo()
+        self._pkgrel = value
+
     def __repr__(self):
         return f"{self.remotename}: {self.refname}"
 
@@ -167,7 +187,7 @@ class Pkgbuild:
         self._artifacts = None
 
         boolkeys = ["isbroken", "isdynamic"]
-        strkeys = ["epoch", "pkgrel", "pkgver", "pkgbase"]
+        strkeys = ["epoch", "pkgver", "pkgbase"]
         listkeys = ["pkgname", "makedepends", "arch"]
         dictkeys = ["depends", "provides", "optdepends"]
 
@@ -176,13 +196,13 @@ class Pkgbuild:
             if k in boolkeys:
                 setattr(self, k, v == "true")
             if k in ["pkgbase", "pkgname"]:
-                if "kodi-mpp-git" in v:
-                    pass
                 curpkg = Package(v, self)
             if k in strkeys:
                 if k == "pkgbase":
                     v = Package(v, self)
                 setattr(self, k, v)
+            if k in "pkgrel":
+                self._pkgrel = int(v)
             if k in listkeys:
                 attr = getattr(self, k)
                 if v not in attr:
@@ -218,6 +238,18 @@ class Pkgbuild:
                     pkg.compare = defs.COMP_EQ
                     pkg.version = self.version
                 pkg.pkgbuild = self
+
+        # use the pkgrel of latest built artifacts pkgrel
+        for fname in os.listdir(self.distpath):
+            pkgname, pkgver, pkgrel = Package.fnameparse(fname)
+            if pkgname is None:
+                continue
+            if pkgname not in self.pkgname:
+                continue
+            if not self.pkgver == pkgver:
+                continue
+            if pkgrel > self.pkgrel:
+                self.pkgrel = pkgrel
 
     def itersrcinfo(self):
         if self.srcinfo:
