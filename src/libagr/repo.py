@@ -198,8 +198,9 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
         if not base_package.pkgbuild:
             continue
         artifact = base_package.pkgbuild.getartifact(base_package)
+        build = True
         if artifact and not force:
-            relstate = autorel.DEP_OK
+            build = False
             if container.name == "native":
                 try:
                     artifact = base_package.pkgbuild.latestbuild(base_package)
@@ -208,21 +209,30 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
                     log.logger.warning("Can not analyse %s, assuming it is already built without any issue, Error:%s",
                                        base_package, e)
                 else:
-                    relstate = autorel.checkpkg(artifact)
-            # release is built and usable
-            if not relstate == autorel.DEP_OLD:
+                    if autorel.checkpkg(artifact) == autorel.DEP_OLD:
+                        build = True
+            if build:
+                # bump pkgrel since deps has newer verions and pkg needs rebuilding
+                base_package.pkgbuild.pkgrel += 1
+            else:
+                # release is built and usable, no need to rebuild
                 log.logger.info(f"already built, {artifact}")
-                continue
-            # bump pkgrel since deps has newer verions and pkg needs rebuilding
-            base_package.pkgbuild.pkgrel += 1
-        if base_package.pkgbuild.build(force, skippgpcheck, skipchecksum, skipinteg, noconfirm, ignorearch) is False:
+
+        if build and base_package.pkgbuild.build(force,
+                                                 skippgpcheck,
+                                                 skipchecksum,
+                                                 skipinteg,
+                                                 noconfirm,
+                                                 ignorearch) is False:
             log.logger.error(f"Error building {base_package}")
             return False
+
         # install previously built package if it was in deps list
         if base_package in basedeps and not base_package.isinstalled(container):
             if not installpkgs(container, [base_package], skippgpcheck, skipchecksum, skipinteg, noconfirm, force, ignorearch):
                 return False
             agr_installs.append(base_package)
+
     return packages
 
 
