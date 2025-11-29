@@ -226,19 +226,6 @@ class Pkgbuild:
                 if provide not in self.pkgnames:
                     self.pkgnames.append(provide)
 
-        # inherit the versions from pkgver if not already given
-        if self.pkgbase:
-            self.pkgbase.compare = defs.COMP_EQ
-            self.pkgbase.version = self.version
-            self.pkgbase.pkgbuild = self
-
-        for attr in [self.pkgname, self.pkgnames]:
-            for pkg in attr:
-                if not pkg.version:
-                    pkg.compare = defs.COMP_EQ
-                    pkg.version = self.version
-                pkg.pkgbuild = self
-
         # use the pkgrel of latest built artifacts pkgrel
         for fname in os.listdir(self.distpath):
             pkgname, pkgver, pkgrel = Package.fnameparse(fname)
@@ -250,6 +237,20 @@ class Pkgbuild:
                 continue
             if pkgrel > self.pkgrel:
                 self.pkgrel = pkgrel
+
+        for attr in [self.pkgname, self.pkgnames]:
+            for pkg in attr:
+                if not pkg.version:
+                    pkg.compare = defs.COMP_EQ
+                    pkg.version = self.version
+                pkg.pkgbuild = self
+
+        # inherit the versions from pkgver if not already given
+        if self.pkgbase:
+            self.pkgbase.compare = defs.COMP_EQ
+            self.pkgbase.version = self.version
+            self.pkgbase.pkgbuild = self
+
 
     def itersrcinfo(self):
         if self.srcinfo:
