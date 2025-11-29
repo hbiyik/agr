@@ -418,6 +418,14 @@ class Pkgbuild:
             args.append(f"--ignorearch")
 
         retval = self.container.run_interactive("makepkg", "-s", *args, cwd=self.pkgfullpath, env=self.env)
+        # remove unwanted chars from the artifact name
+        for package in self.pkgname:
+            artifact_orig = self.getartifact(package, True)
+            if not artifact_orig:
+                raise RuntimeError(f"Newly built artifact {artifact_orig} is not found")
+            artifact_new = self.getartifact(package, False, True)
+            if not artifact_orig == artifact_new:
+                self.container.run_stdout("mv", "-f", artifact_orig, artifact_new)
         self.sync(skipinteg, skippgpcheck, False)
         self.parse()
         return retval
@@ -456,7 +464,7 @@ class Pkgbuild:
 
         return artifact
 
-    def getartifact(self, package, checkexists=True):
+    def getartifact(self, package, checkexists=True, filterchars=True):
         if package.pkgname not in self.pkgname:
             return
 
@@ -467,6 +475,9 @@ class Pkgbuild:
 
         artifact = f"{package.pkgname}-{self.version}-{arch}{self.container.pkgext}"
         artifact = os.path.join(self.distpath, artifact)
+        if filterchars:
+            for c in [":"]:
+                artifact = artifact.replace(c, ".")
         if not checkexists or os.path.exists(artifact):
             return artifact
 
