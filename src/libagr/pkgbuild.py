@@ -107,7 +107,6 @@ class Package:
                 return syspkg.version
         else:
             isbuilt = self.pkgbuild.hasartifact(self)
-            # latestbuilt = self.pkgbuild.getartifact(self)
             if isbuilt and isbuilt.compare(defs.COMP_L, self.version):
                 return isbuilt
         return None
@@ -250,7 +249,6 @@ class Pkgbuild:
             self.pkgbase.compare = defs.COMP_EQ
             self.pkgbase.version = self.version
             self.pkgbase.pkgbuild = self
-
 
     def itersrcinfo(self):
         if self.srcinfo:
@@ -469,11 +467,8 @@ class Pkgbuild:
 
         artifact = f"{package.pkgname}-{self.version}-{arch}{self.container.pkgext}"
         artifact = os.path.join(self.distpath, artifact)
-        # some FS types dont support some chars, replace them with .
-        artifacts = [artifact, artifact.replace(":", ".")]
-        for artifact in artifacts:
-            if not checkexists or os.path.exists(artifact):
-                return artifact
+        if not checkexists or os.path.exists(artifact):
+            return artifact
 
     def install(self, *packages, noconfirm=False):
         installs = []
