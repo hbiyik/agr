@@ -4,10 +4,11 @@ Created on May 8, 2024
 @author: boogie
 '''
 import platform
-import subprocess
+import re
+import os
 from libagr import config
 from libagr import container
-from libagr import log
+from libagr import cmd
 
 
 def iter_containers(arch=None):
@@ -34,4 +35,6 @@ def get_container(name=None):
     return container.native.Native
 
 
-
+def ishostqemu():
+    out = cmd.run_stdout("ps", "-q", str(os.getpid()), "-o", "cmd=")
+    return bool(re.search(r"qemu-.+-static", out))

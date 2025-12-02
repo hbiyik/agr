@@ -22,7 +22,7 @@ def main():
         parser.add_argument("-v", "--version", required=False, action="store_true",
                             help="print version")
         cont = common.get_container()
-        log.logger.info(f"Running in container {cont.name}")
+        log.logger.info(f"Running in container {cont.name}{'[qemu]' if common.ishostqemu() else ''}")
         cont.config_commands(parser)
         args = parser.parse_args()
         if args.debug:
