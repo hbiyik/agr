@@ -1,0 +1,9 @@
+# syntax=docker/dockerfile:1
+FROM --platform=linux/arm/v7 gmanka/archlinuxarm:base-devel AS builder
+
+RUN sed -i -e 's~#IgnorePkg.*~IgnorePkg = filesystem~g' '/etc/pacman.conf' && \
+    pacman -Syu git --noconfirm
+RUN useradd -m user && echo "ALL ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN cd /home/user && \
+    sudo -u user git clone https://github.com/hbiyik/agr.git && \
+    cd agr/ospackages/arch && sudo -u user makepkg -si --noconfirm

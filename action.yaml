@@ -1,42 +1,70 @@
-name: 'agr'
+name: "agr"
+description: Build Arch packages for multiple OS platforms.
+
 inputs:
   url:
-    description: git url to load PKGBUILD from
+    description: Git URL to load PKGBUILD from
     default: ${{ github.server_url }}/${{ github.repository }}.git
   package:
+    description: List of space-separated package names to build
     required: true
-    description: list of space seperated package names to build
   skippgpcheck:
+    description: Skip PGP check
     default: false
     type: boolean
   skipinteg:
+    description: Skip integrity check
     default: false
     type: boolean
   skipchecksum:
+    description: Skip checksum
     default: false
     type: boolean
   ignorearch:
+    description: Ignore architecture
     default: false
     type: boolean
+  os:
+    description: OS to build packages for
+    type: choice
+    options:
+      - alarm-aarch64
+      - alarm-armv7h
+      - arch-x86_64
+    default: arch-x86_64
+
 runs:
-  using: 'docker'
-  image: "Dockerfile.alarm.aarch64"
-  args:
-    - bash 
-    - -c 
-    - "mkdir -p /github/workspace/agr && \
-       chown -R user /github/workspace/agr && \
-       rm -rf /home/user/.agr && \
-       ln -sf /github/workspace/agr /home/user/.agr && \
-       packages='${{ inputs.package }}' && \
-       sudo -u user agr rem set repo ${{ inputs.url }} && \
-       sudo -u user agr sync --pkg=${packages// /,} --noconfirm \
-         ${{ fromJSON('[\"\", \"--skippgpcheck\"]')[inputs.skippgpcheck == 'true'] }} \
-         ${{ fromJSON('[\"\", \"--skipinteg\"]')[inputs.skipinteg == 'true'] }} \
-         ${{ fromJSON('[\"\", \"--ignorearch\"]')[inputs.ignorearch == 'true'] }} \
-         ${{ fromJSON('[\"\", \"--skipchecksum\"]')[inputs.skipchecksum == 'true'] }} && \
-       sudo -u user agr build ${{ inputs.package }} --noconfirm \
-         ${{ fromJSON('[\"\", \"--skippgpcheck\"]')[inputs.skippgpcheck == 'true'] }} \
-         ${{ fromJSON('[\"\", \"--skipinteg\"]')[inputs.skipinteg == 'true'] }} \
-         ${{ fromJSON('[\"\", \"--ignorearch\"]')[inputs.ignorearch == 'true'] }} \
-         ${{ fromJSON('[\"\", \"--skipchecksum\"]')[inputs.skipchecksum == 'true'] }}"
+  using: "composite"
+  steps:
+    - name: Build
+      shell: bash
+      run: |
+        WORKDIR="/tmp/agr"
+        mkdir -p "$WORKDIR"
+        DOCKERFILE="Dockerfile.${{ inputs.os }}"
+        curl -fsSL "https://raw.githubusercontent.com/hbiyik/agr/master/$DOCKERFILE" -o "$WORKDIR/$DOCKERFILE"
+
+        packages='${{ inputs.package }}'
+
+        # agr flags
+        FLAGS=""
+        [ "${{ inputs.skippgpcheck }}" = "true" ] && FLAGS="$FLAGS --skippgpcheck"
+        [ "${{ inputs.skipinteg }}" = "true" ] && FLAGS="$FLAGS --skipinteg"
+        [ "${{ inputs.ignorearch }}" = "true" ] && FLAGS="$FLAGS --ignorearch"
+        [ "${{ inputs.skipchecksum }}" = "true" ] && FLAGS="$FLAGS --skipchecksum"
+
+        # Build the Docker image
+        docker build -t agr-build -f "$WORKDIR/$DOCKERFILE" .
+
+        # Run the container
+        docker run --rm \
+          -v "${GITHUB_WORKSPACE}:/work" \
+          -e PACKAGE="$packages" \
+          agr-build bash -c "\
+            mkdir -p /work/agr && \
+            chown -R user /work/agr && \
+            rm -rf /home/user/.agr && \
+            ln -sf /work/agr /home/user/.agr && \
+            sudo -u user agr rem set repo ${{ inputs.url }} && \
+            sudo -u user agr sync --pkg=\${PACKAGE// /,} --noconfirm $FLAGS && \
+            sudo -u user agr build \$PACKAGE --noconfirm $FLAGS"
