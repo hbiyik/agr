@@ -4,6 +4,7 @@ import logging
 
 from libagr import log
 from libagr import defs
+from libagr import elf
 from libagr.container import common
 
 
@@ -22,7 +23,12 @@ def main():
         parser.add_argument("-v", "--version", required=False, action="store_true",
                             help="print version")
         cont = common.get_container()
-        log.logger.info(f"Running in container {cont.name}{'[qemu]' if common.ishostqemu() else ''}")
+        arch = ""
+        if cont.name == defs.CONTAINER_NATIVE:
+            arch = str(elf.PROC.arch)
+            if common.ishostqemu():
+                arch += f"-qemu"
+        log.logger.info(f"Running in container {cont.name} {arch}")
         cont.config_commands(parser)
         args = parser.parse_args()
         if args.debug:
