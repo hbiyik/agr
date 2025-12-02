@@ -68,7 +68,8 @@ for d in DIRS:
 ARCH_X86_64 = "x86_64"
 ARCH_AARCH64 = "aarch64"
 ARCH_ARMV7H = "armv7h"
-ARCH_HOST = platform.uname()[4]
+ARCHMAPS = {"armv7l": "armv7h"}
+ARCH_HOST = ARCHMAPS.get(platform.uname()[4], platform.uname()[4])
 
 CMD_REM = "rem"
 CMD_CONT_LIST = "list"

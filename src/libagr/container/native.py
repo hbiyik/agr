@@ -30,7 +30,7 @@ class SplitArgs(argparse.Action):
 class Native:
     name = "native"
     host_archs = None
-    cont_arch = os.uname()[4]
+    cont_arch = defs.ARCH_HOST
     makepkgconf_path = "/etc/makepkg.conf"
     packages = ["sudo", "base-devel", "git"]
     env = defs.ENV.copy()
