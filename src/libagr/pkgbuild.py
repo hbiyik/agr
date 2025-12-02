@@ -420,8 +420,10 @@ class Pkgbuild:
         retval = self.container.run_interactive("makepkg", "-s", *args, cwd=self.pkgfullpath, env=self.env)
         # remove unwanted chars from the artifact name
         for package in self.pkgname:
-            artifact_orig = self.getartifact(package, True)
+            artifact_orig = self.getartifact(package, False)
             if not artifact_orig:
+                raise RuntimeError(f"{package} is not in {self.pkgname}")
+            if not os.path.exists(artifact_orig):
                 raise RuntimeError(f"Newly built artifact {artifact_orig} is not found")
             artifact_new = self.getartifact(package, False, True)
             if not artifact_orig == artifact_new:
