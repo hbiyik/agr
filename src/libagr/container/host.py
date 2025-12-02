@@ -13,11 +13,12 @@ from libagr.container import native
 from libagr import cmd as agrcmd
 from libagr import defs
 from libagr import log
+from libagr import elf
 
 
 class Host(native.Native):
-    cont_arch = defs.ARCH_HOST
-    host_archs = [defs.ARCH_HOST]
+    cont_arch = elf.PROC.arch
+    host_archs = [elf.PROC.arch]
     name = f"host-{cont_arch}"
     packages = native.Native.packages + ["arch-install-scripts", "systemd"]
     cppflags = []

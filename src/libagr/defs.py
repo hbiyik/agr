@@ -5,7 +5,6 @@ Created on Jan 30, 2024
 '''
 import os
 import multiprocessing
-import platform
 
 
 BASE_PATH = os.path.join(os.path.expanduser('~'), ".agr")
@@ -65,11 +64,10 @@ for d in DIRS:
     if not os.path.exists(d):
         os.makedirs(d, exist_ok=True)
 
+ARCH_i686 = "i686"
 ARCH_X86_64 = "x86_64"
 ARCH_AARCH64 = "aarch64"
 ARCH_ARMV7H = "armv7h"
-ARCHMAPS = {"armv7l": "armv7h"}
-ARCH_HOST = ARCHMAPS.get(platform.uname()[4], platform.uname()[4])
 
 CMD_REM = "rem"
 CMD_CONT_LIST = "list"

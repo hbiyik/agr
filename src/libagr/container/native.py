@@ -4,7 +4,6 @@ Created on May 8, 2024
 @author: boogie
 '''
 import argparse
-import os
 
 from libagr import pkgbuild
 from libagr import config
@@ -13,6 +12,7 @@ from libagr import log
 from libagr import defs
 from libagr import git
 from libagr import clean
+from libagr import elf
 from libagr.container import common
 
 from libagr import cmd as agrcmd
@@ -30,7 +30,7 @@ class SplitArgs(argparse.Action):
 class Native:
     name = "native"
     host_archs = None
-    cont_arch = defs.ARCH_HOST
+    cont_arch = elf.PROC.arch
     makepkgconf_path = "/etc/makepkg.conf"
     packages = ["sudo", "base-devel", "git"]
     env = defs.ENV.copy()

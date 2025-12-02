@@ -22,11 +22,19 @@ import os
 
 from libagr import cmd
 from libagr import log
+from libagr import defs
 
 try:
     import pyzstd
 except ImportError:
     pyzstd = None
+
+
+MACHMAP = {
+    0x3: defs.ARCH_i686,
+    0x3e: defs.ARCH_X86_64,
+    0x28: defs.ARCH_ARMV7H,
+    0xb7: defs.ARCH_AARCH64}
 
 
 class Elf32:
@@ -64,8 +72,10 @@ class ElfFile:
             self.is64bit = is64bit
         self.header = None
         if machine is None or is64bit is None:
-            f.seek(0)
-            self.header = f.read(0x3E)
+            if not self.f:
+                self.f = open(fullpath, "rb")
+            self.f.seek(0)
+            self.header = self.f.read(0x3E)
             if not len(self.header) == 0x3E:
                 raise ElfFileException("Not an Elf File, possibly a script?")
             signature = self.header[0:4]
@@ -81,6 +91,10 @@ class ElfFile:
                     raise ElfFileException(f"Unknown class: {is64bit}")
             if machine is None:
                 self.machine = self.read(self.header, 0x12, 2)
+
+    @property
+    def arch(self):
+        return MACHMAP.get(self.machine, self.machine)
 
     def close(self):
         if self.f:
@@ -144,7 +158,7 @@ class ElfFile:
         return self.machine == other.machine and self.is64bit == other.is64bit
 
     def __repr__(self):
-        return f"{self.path}(Mach:{self.machine}, 64:{self.is64bit})"
+        return f"{self.path}(Arch:{self.arch}, 64:{self.is64bit})"
 
     def __eq__(self, other):
         return self.path == other.path and self.issameabi(other)
@@ -328,3 +342,7 @@ def findsystemlibs():
             if lib and lib not in libs:
                 yield lib
                 libs.append(lib)
+
+
+PROC = ElfFile("/proc/self/exe")
+PROC.close()
