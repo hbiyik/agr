@@ -201,7 +201,7 @@ def buildpkgs(container, packages, no_packages=None, repo=None, no_repo=None, ag
         build = True
         if artifact and not force:
             build = False
-            if container.name == "native":
+            if container.name == defs.CONTAINER_NATIVE:
                 try:
                     artifact = base_package.pkgbuild.latestbuild(base_package)
                     autorel.syncsysdeps(container, base_package, noconfirm, agr_installs)
@@ -250,7 +250,7 @@ def installpkgs(container, packages, skippgpcheck=False, skipchecksum=False, ski
         kwargs = {}
         if noconfirm:
             pacmancmd.append("--noconfirm")
-        if container.name != "native":
+        if container.name != defs.CONTAINER_NATIVE:
             kwargs["immutable"] = immutable
         if not container.run_interactive(*pacmancmd, **kwargs):
             log.logger.error(f"Error installing {artifact}")

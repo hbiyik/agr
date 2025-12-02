@@ -28,7 +28,7 @@ class SplitArgs(argparse.Action):
 
 
 class Native:
-    name = "native"
+    name = defs.CONTAINER_NATIVE
     host_archs = None
     cont_arch = elf.PROC.arch
     makepkgconf_path = "/etc/makepkg.conf"
@@ -84,7 +84,7 @@ class Native:
         build_p.add_argument('pkgname', nargs='+', help=f"list of packages to build")
 
         parsers = [sync_p, build_p, update_p]
-        if cls.name == "native":
+        if cls.name == defs.CONTAINER_NATIVE:
             install_p = cmd.add_parser(defs.CMD_INSTALL, help="Install packages")
             install_p.add_argument('pkgname', nargs='+', help="list of packages to build")
             parsers.append(install_p)
@@ -178,7 +178,7 @@ class Native:
                         updates.append(package)
 
         packages = agrrepo.buildpkgs(self, updates, no_packages, repo, no_repo, agrfirst, skippgpcheck, skipchecksum, skipinteg, noconfirm, force, ignorearch)
-        if self.name == "native":
+        if self.name == defs.CONTAINER_NATIVE:
             return agrrepo.installpkgs(self, packages, skippgpcheck, skipchecksum, skipinteg, noconfirm, False, ignorearch)
         else:
             return True

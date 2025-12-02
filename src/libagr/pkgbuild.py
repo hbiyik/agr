@@ -101,7 +101,7 @@ class Package:
         return syspkg
 
     def needsupdate(self, container):
-        if container.name == "native":
+        if container.name == defs.CONTAINER_NATIVE:
             syspkg = self.isinstalled(container)
             if syspkg and self.version.compare(defs.COMP_G, syspkg.version):
                 return syspkg.version

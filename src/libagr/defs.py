@@ -69,6 +69,8 @@ ARCH_X86_64 = "x86_64"
 ARCH_AARCH64 = "aarch64"
 ARCH_ARMV7H = "armv7h"
 
+CONTAINER_NATIVE = "native"
+
 CMD_REM = "rem"
 CMD_CONT_LIST = "list"
 CMD_CONT = "container"
