@@ -9,3 +9,7 @@ RUN useradd -m user && echo "ALL ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 RUN cd /home/user && \
     sudo -u user git clone https://github.com/hbiyik/agr.git && \
     cd agr/ospackages/arch && sudo -u user makepkg -si --noconfirm
+RUN cd /tmp/ && \
+    git clone https://github.com/robotpy/fakearmv7l.git && \
+    cd fakearmv7l && make && make install
+ENV LD_PRELOAD=/usr/local/lib/libfakearmv7l.so
