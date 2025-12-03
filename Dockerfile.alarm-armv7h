@@ -11,5 +11,7 @@ RUN cd /home/user && \
     cd agr/ospackages/arch && sudo -u user makepkg -si --noconfirm
 RUN cd /tmp/ && \
     git clone https://github.com/robotpy/fakearmv7l.git && \
-    cd fakearmv7l && make && make install
+    cd fakearmv7l && make && make install && \
+    echo "LD_PRELOAD=/usr/local/lib/libfakearmv7l.so" > /etc/environment && \
+    echo "/usr/local/lib/libfakearmv7l.so" > /etc/ld.so.preload
 ENV LD_PRELOAD=/usr/local/lib/libfakearmv7l.so
