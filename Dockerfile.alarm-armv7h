@@ -4,7 +4,8 @@ FROM --platform=linux/arm/v7 gmanka/archlinuxarm:base-devel AS builder
 RUN sed -i -e 's~#IgnorePkg.*~IgnorePkg = filesystem~g' '/etc/pacman.conf' && \
     sed -i -e 's/-mno-omit-leaf-frame-pointer//g' /etc/makepkg.conf && \
     sed -i -e 's/-Wl,-z,pack-relative-relocs//g' /etc/makepkg.conf && \
-    pacman -Syu git --noconfirm
+    pacman -Syu git --noconfirm && \
+    pacman -S python-pyzstd --noconfirm
 RUN useradd -m user && echo "ALL ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 RUN cd /home/user && \
     sudo -u user git clone https://github.com/hbiyik/agr.git && \
