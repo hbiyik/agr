@@ -22,6 +22,8 @@ with open("/usr/share/makepkg/srcinfo.sh", "r") as f:
 SHELL_SRCINFO += "\nwrite_srcinfo"
 SHELL_MAKEDEPS = 'echo "${makedepends[*]}"'
 
+PKG_FILTERCHARS = {":": "."}
+
 
 def foldername(path):
     path = os.path.realpath(path)
@@ -61,16 +63,25 @@ class Package:
                 break
 
     @staticmethod
-    def fnameparse(fname):
+    def filterchars(txt):
+        for c1, c2 in PKG_FILTERCHARS.items():
+            txt = txt.replace(c1, c2)
+        return txt
+
+    @staticmethod
+    def fnameparse(fname, filterchars=True):
         fname = os.path.basename(fname)
         parts = fname.split("-")
+        if filterchars:
+            fname = Package.filterchars(fname)
         if len(parts) < 4:
             return None, None, None
+        # pgname-[epoch:]pkgver-pkgrel-arch.ext
         pkgrel = parts[-2]
         if not pkgrel.isdigit():
             return None, None, None
         pkgrel = int(pkgrel)
-        pkgver = parts[-3].replace(":", ".")
+        pkgver = parts[-3]
         pkgname = "-".join(parts[:-3])
         return pkgname, pkgver, pkgrel
 
@@ -215,6 +226,9 @@ class Pkgbuild:
                         v = v.split(":")[0]
                     attr[curpkg].append(Package(v))
 
+        if self.epoch:
+            self.pkgver = f"{self.epoch}:{self.pkgver}"
+
         # collect all possible package name this pkgbuild provides under pkgnames
         for pkg in self.pkgname:
             if pkg not in self.pkgnames:
@@ -232,7 +246,7 @@ class Pkgbuild:
                 continue
             if pkgname not in self.pkgname:
                 continue
-            if not self.pkgver == pkgver:
+            if not Package.filterchars(self.pkgver) == pkgver:
                 continue
             if pkgrel > self.pkgrel:
                 self.pkgrel = pkgrel
@@ -357,10 +371,7 @@ class Pkgbuild:
 
     @property
     def version(self):
-        vers = ""
-        if self.epoch:
-            vers = f"{self.epoch}:"
-        vers += self.pkgver
+        vers = self.pkgver
         if self.pkgrel:
             vers += f"-{self.pkgrel}"
         return version.Version(vers)
@@ -478,8 +489,7 @@ class Pkgbuild:
         artifact = f"{package.pkgname}-{self.version}-{arch}{self.container.pkgext}"
         artifact = os.path.join(self.distpath, artifact)
         if filterchars:
-            for c in [":"]:
-                artifact = artifact.replace(c, ".")
+            artifact = Package.filterchars(artifact)
         if not checkexists or os.path.exists(artifact):
             return artifact
 
