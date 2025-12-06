@@ -148,7 +148,7 @@ class Pkgbuild:
         self.forcebuilt = False
         self.pkgname = []
         self.pkgnames = []
-        self.arch = []
+        self.arch = {}
         self.depends = {}
         self.makedepends = []
         self.optdepends = {}
@@ -189,7 +189,7 @@ class Pkgbuild:
         self.pkgname = []
         self.pkgnames = []
         self.makedepends = []
-        self.arch = []
+        self.arch = {}
         self.depends = {}
         self.provides = {}
         self.optdepends = {}
@@ -198,8 +198,9 @@ class Pkgbuild:
 
         boolkeys = ["isbroken", "isdynamic"]
         strkeys = ["epoch", "pkgver", "pkgbase"]
-        listkeys = ["pkgname", "makedepends", "arch"]
-        dictkeys = ["depends", "provides", "optdepends"]
+        listkeys = ["pkgname", "makedepends"]
+        dictkeys = ["arch"]
+        dictlistkeys = ["depends", "provides", "optdepends"]
 
         curpkg = None
         for k, v in self.itersrcinfo():
@@ -217,7 +218,7 @@ class Pkgbuild:
                 attr = getattr(self, k)
                 if v not in attr:
                     attr.append(Package(v))
-            if k in dictkeys:
+            if k in dictlistkeys:
                 attr = getattr(self, k)
                 if curpkg not in attr:
                     attr[curpkg] = []
@@ -225,6 +226,9 @@ class Pkgbuild:
                     if ":" in v:
                         v = v.split(":")[0]
                     attr[curpkg].append(Package(v))
+            if k in dictkeys:
+                attr = getattr(self, k)
+                attr[curpkg] = v
 
         if self.epoch:
             self.pkgver = f"{self.epoch}:{self.pkgver}"
@@ -481,7 +485,7 @@ class Pkgbuild:
         if package.pkgname not in self.pkgname:
             return
 
-        if "any" in self.arch:
+        if "any" in self.arch.get(package.pkgname, self.arch[self.pkgbase.pkgname]):
             arch = "any"
         else:
             arch = self.container.cont_arch
