@@ -294,7 +294,11 @@ def finddeplibs(pkgpath):
         if tinfo.isdir():
             continue
         if bool(tinfo.mode & stat.S_IEXEC):
-            f = t.extractfile(tinfo)
+            try:
+                f = t.extractfile(tinfo)
+            except KeyError:
+                log.logger.warning(f"Link file {tinfo.path} does not have target {tinfo.linkpath} in package {os.path.basename(pkgpath)}")
+                continue
             if f is None:
                 continue
             sofile = None
