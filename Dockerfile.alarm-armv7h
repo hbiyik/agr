@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 FROM --platform=linux/arm/v7 gmanka/archlinuxarm:base-devel AS builder
 
-RUN sed -i -e 's~#IgnorePkg.*~IgnorePkg = filesystem~g' '/etc/pacman.conf' && \
+RUN sed -i -e 's~\[options\].*~[options]\nDisableSandbox~g' '/etc/pacman.conf' && \
+    sed -i -e 's~#IgnorePkg.*~IgnorePkg = filesystem~g' '/etc/pacman.conf' && \
     sed -i -e 's/-mno-omit-leaf-frame-pointer//g' /etc/makepkg.conf && \
     sed -i -e 's/-Wl,-z,pack-relative-relocs//g' /etc/makepkg.conf && \
     pacman -Syu git --noconfirm && \
