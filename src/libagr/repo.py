@@ -26,6 +26,7 @@ def iterpkgpaths(rname):
 
 def tempsync(pkgbuilds):
     def _tempsync(pkgb):
+        log.logger.info(f"Parsing {pkgb}")
         pkgb.gensrcinfo()
         try:
             pkgb.parse()
