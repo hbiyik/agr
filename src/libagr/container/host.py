@@ -134,7 +134,7 @@ class Host(native.Native):
                 for k in systemcfg[section]:
                     if k.lower() == "include":
                         with open(systemcfg[section][k]) as f:
-                            server = re.search(r"server\s*\=\s*(.+)", f.read(), re.IGNORECASE)
+                            server = re.search(r"[^#]server\s*\=\s*(.+)", f.read(), re.IGNORECASE)
                             contcfg.set(section, "Server", server.group(1))
                     else:
                         contcfg.set(section, k, systemcfg[section][k])
