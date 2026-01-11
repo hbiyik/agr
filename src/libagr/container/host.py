@@ -129,6 +129,7 @@ class Host(native.Native):
             if section.lower() == "options":
                 contcfg.add_section(section)
                 contcfg.set("options", "Architecture", systemcfg[section]["Architecture"])
+                contcfg.set("options", "SigLevel", systemcfg[section].get("SigLevel", "Required DatabaseOptional"))
             else:
                 contcfg.add_section(section)
                 for k in systemcfg[section]:
