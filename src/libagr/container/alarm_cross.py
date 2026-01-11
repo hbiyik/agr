@@ -43,6 +43,7 @@ class Alarm64(host.Host):
 
         conf = "[options]\n"
         conf += f"Architecture = {self.cont_arch}\n"
+        conf += f"SigLevel = Required DatabaseOptional\n"
         conf = addrepo(conf, "core", strap)
         conf = addrepo(conf, "extra", strap)
         conf = addrepo(conf, "alarm", strap)
