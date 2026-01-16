@@ -2,8 +2,8 @@
 
 _name=agr
 pkgname="${_name}-git"
-pkgver=0.2.1.22
-pkgrel=1
+pkgver=1.2.4.91
+pkgrel=2
 pkgdesc='Archlinux Git Repositories'
 arch=('any')
 url="https://github.com/hbiyik/${_name}"
