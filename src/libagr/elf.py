@@ -299,6 +299,9 @@ def finddeplibs(pkgpath):
             except KeyError:
                 log.logger.warning(f"Link file {tinfo.path} does not have target {tinfo.linkpath} in package {os.path.basename(pkgpath)}")
                 continue
+            except RecursionError:
+                log.logger.warning(f"Link file {tinfo.path} is a looping link to {tinfo.linkpath} in package {os.path.basename(pkgpath)}")
+                continue
             if f is None:
                 continue
             sofile = None
