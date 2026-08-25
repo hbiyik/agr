@@ -204,6 +204,7 @@ class Host(native.Native):
                   "systemd-nspawn",
                   "-q",
                   f"--bind=/home/{os.getlogin()}",
+                  "--restrict-address-families=AF_INET AF_INET6 AF_UNIX",
                   "-D", self.rootfs_path]
 
         # mount overlay fs to mutable parts of the container so that they will be kept if immutable
